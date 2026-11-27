@@ -9,14 +9,23 @@ import { DocumentForm } from './DocumentForm'
 import { DocumentLoadError } from './DocumentLoadError'
 import { DocumentLoading } from './DocumentLoading'
 import { DocumentNotice } from './DocumentNotice'
-import { DocumentReadView } from './DocumentReadView'
+import { DocumentReadView, type ReadNoticeView } from './DocumentReadView'
 import { DocumentKindContext, useDocumentKind } from './document-kind-context'
 import type { DocumentKind } from './document-kinds'
 
-// `read` comes with the record loaded; the check keeps the type honest.
-function ReadState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab }) {
+// `read` comes with the record loaded; the check keeps the type honest. `notice` is a line
+// under the title (a closed order's `?edit=1`: it cannot be edited).
+function ReadState({
+    data,
+    tab,
+    notice,
+}: {
+    data: DocumentScreenData
+    tab: DocumentTab
+    notice?: ReadNoticeView
+}) {
     if (!data.record) return <DocumentLoading />
-    return <DocumentReadView data={data} record={data.record} tab={tab} />
+    return <DocumentReadView data={data} record={data.record} tab={tab} notice={notice} />
 }
 
 interface ScreenStateProps {
@@ -46,7 +55,11 @@ function ScreenState({
         noAccess: `${testId}-no-access`,
         cannotEdit: `${testId}-cannot-edit`,
         cannotConvert: `${testId}-cannot-convert`,
+        closedNotice: `${testId}-closed-notice`,
     }
+    // A closed order's `?edit=1` (purchase order spec §3.12): its read view, with the kind's
+    // words that it cannot be edited.
+    const closedNotice = { testID: ids.closedNotice, message: messages.cannotEdit }
     // Only an invoice is made from an estimate; the estimate's words say it cannot be.
     const { cannotConvert } = ESTIMATE_KIND.messages
     // A source the kind refuses (DocumentKind.sourceNotice: a credit memo's invoice, a
@@ -70,6 +83,8 @@ function ScreenState({
             return <DocumentNotice testID={cannotStart.testId} message={cannotStart.message} />
         case 'read':
             return <ReadState data={data} tab={tab} />
+        case 'closed-edit':
+            return <ReadState data={data} tab={tab} notice={closedNotice} />
         case 'form':
             return (
                 <DocumentForm

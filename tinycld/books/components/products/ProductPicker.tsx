@@ -3,7 +3,8 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import type { PressableInstance } from 'react-native'
+import type { ReactNode } from 'react'
+import { type PressableInstance, Text, View } from 'react-native'
 import { type LiveRecovery, mergeRecoveries } from '../../lib/live-recovery'
 import { PRODUCT_PICKER_LIMIT, productPickerOptions } from '../../lib/product-list'
 import { BUNDLE_ITEM_TYPES } from '../../lib/product-picker-types'
@@ -43,6 +44,31 @@ interface ProductPickerProps {
     opensOnFocus?: () => boolean
     // After a pick: the caller moves focus on (a line's next cell).
     onPicked?: () => void
+    // A purchase order line (purchase order spec Q17): the chosen product's Vendor part no.
+    // as a second line under the trigger; nothing for a product with none.
+    showsPartNo?: boolean
+}
+
+// The chosen product's Vendor part no. under the trigger (`showsPartNo`); the picker alone
+// when it shows none.
+function WithPartNo({
+    partNo,
+    testID,
+    children,
+}: {
+    partNo: string
+    testID: string
+    children: ReactNode
+}) {
+    if (partNo === '') return children
+    return (
+        <View className="gap-0.5">
+            {children}
+            <Text testID={testID} className="text-xs text-muted-foreground" numberOfLines={1}>
+                {partNo}
+            </Text>
+        </View>
+    )
 }
 
 // Active products of the given types. The name and vendor part number search runs on the client
@@ -155,6 +181,7 @@ export function ProductPicker({
     onBlur,
     opensOnFocus,
     onPicked,
+    showsPartNo = false,
 }: ProductPickerProps) {
     const picker = useSearchPicker()
     const onTriggerFocus = () => {
@@ -193,30 +220,33 @@ export function ProductPicker({
             onError: err => log.error('books.products.picker', err),
         })
     }
+    const partNo = showsPartNo && value ? (chosen.data?.vendor_part_no ?? '') : ''
     return (
-        <SearchPicker
-            picker={picker}
-            title="Product or service"
-            triggerLabel={chosenName}
-            isPlaceholder={!value}
-            triggerSuffix={triggerSuffix}
-            triggerAccessibilityLabel={accessibilityLabel}
-            triggerTestId={testID}
-            disabled={disabled}
-            searchPlaceholder="Search products and services"
-            searchTestId={`${testID}-search`}
-            options={options}
-            optionTestIdPrefix={`${testID}-option`}
-            value={value}
-            onChange={onChange}
-            isLoading={isLoading}
-            loadFailed={query.isError}
-            onRetry={retry}
-            emptyText={emptyText}
-            triggerRef={triggerRef}
-            onTriggerFocus={onTriggerFocus}
-            onTriggerBlur={onBlur}
-            onPicked={onPicked}
-        />
+        <WithPartNo partNo={partNo} testID={`${testID}-part-no`}>
+            <SearchPicker
+                picker={picker}
+                title="Product or service"
+                triggerLabel={chosenName}
+                isPlaceholder={!value}
+                triggerSuffix={triggerSuffix}
+                triggerAccessibilityLabel={accessibilityLabel}
+                triggerTestId={testID}
+                disabled={disabled}
+                searchPlaceholder="Search products and services"
+                searchTestId={`${testID}-search`}
+                options={options}
+                optionTestIdPrefix={`${testID}-option`}
+                value={value}
+                onChange={onChange}
+                isLoading={isLoading}
+                loadFailed={query.isError}
+                onRetry={retry}
+                emptyText={emptyText}
+                triggerRef={triggerRef}
+                onTriggerFocus={onTriggerFocus}
+                onTriggerBlur={onBlur}
+                onPicked={onPicked}
+            />
+        </WithPartNo>
     )
 }

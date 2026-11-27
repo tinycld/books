@@ -2,6 +2,8 @@
 // the revision the form loaded, as the next value; the server refuses the write
 // with a 409 when the draft changed after that (server/revision.go).
 
+import type { DocumentLifecycle } from './sales-document-kinds'
+
 export const REVISION_CONFLICT_TEXT =
     'This entry changed after you opened it. Load the current entry, then review it before you save or post.'
 
@@ -53,8 +55,8 @@ export const OPENING_CONFLICT_TEXT =
 
 // The notice of a sales document form whose save or post was refused because the
 // document changed after the form took its values. `noun` is the kind's ("Invoice"); an
-// estimate (the quote lifecycle) has no post.
-export function documentConflictText(noun: string, lifecycle: 'posting' | 'quote'): string {
+// estimate (the quote lifecycle) and a purchase order (the order lifecycle) have no post.
+export function documentConflictText(noun: string, lifecycle: DocumentLifecycle): string {
     const name = noun.toLowerCase()
     const action = lifecycle === 'posting' ? 'save or post' : 'save'
     return `This ${name} changed after you opened it. Load the current ${name}, then review it before you ${action}.`

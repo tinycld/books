@@ -8,7 +8,7 @@ import {
     SEND_FORM_DESCRIPTIONS,
     SEND_FORM_KEYS,
 } from '../lib/entry-shortcuts'
-import type { SalesDocumentKind } from '../lib/sales-document-kinds'
+import type { DocumentLifecycle, SalesDocumentKind } from '../lib/sales-document-kinds'
 
 interface DocumentShortcutsInput {
     // The kind's shortcut group, the prefix of the key ids, and its lifecycle (which bar
@@ -216,6 +216,16 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
     return phoneKeys
 }
 
+// The form keys by lifecycle (keyed by DocumentLifecycle, so a new lifecycle fails tsc until
+// it has its keys). An order's form has the quote's bar (DocumentSaveBar), so it has the
+// quote's keys; its Convert, Copy customer link and Save and send are never offered
+// (canConvert, canCopyLink and hasSend are false for it).
+const FORM_KEYS_OF: Record<DocumentLifecycle, (input: KeyListInput) => Shortcut[]> = {
+    posting: postingKeys,
+    quote: quoteKeys,
+    order: quoteKeys,
+}
+
 /**
  * A sales document form's keys that have no button of their own, in the form's `compose`
  * scope: core dialogs and sheets push a `modal` scope above it, so none fires while one
@@ -311,7 +321,7 @@ export function useDocumentShortcuts({
             state: stateRef,
             run: runRef,
         }
-        return lifecycle === 'quote' ? quoteKeys(input) : postingKeys(input)
+        return FORM_KEYS_OF[lifecycle](input)
     }, [
         instance,
         isPhone,

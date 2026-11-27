@@ -62,6 +62,13 @@ export function documentPath(kind: RouteKind, key: string, tab: DocumentTab = 'e
     return tab === 'pdf' ? `${path}?tab=pdf` : path
 }
 
+// A stored purchase order's form (`?edit=1`, purchase order spec §3.2): its read view's
+// path with the edit param, and the tab's after it.
+export function documentEditPath(kind: RouteKind, key: string, tab: DocumentTab = 'edit'): string {
+    const path = `${kind.routeBase}/${key}?edit=1`
+    return tab === 'pdf' ? `${path}&tab=pdf` : path
+}
+
 // A stored document's path. `doc` carries what its URL key needs: a numbered document
 // that no correction replaced opens by its number, any other by its id.
 export function documentHref(

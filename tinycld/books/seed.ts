@@ -14,6 +14,7 @@ import { BANK_SEED } from './lib/bank-connection-fixture'
 import { DEPOSIT_SEED } from './lib/bank-deposit-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { BILL_LINES, BILL_SEED_IDS, BILLS } from './lib/bill-form-fixture'
+import { COMPANY_SETTINGS } from './lib/books-settings-fixture'
 import {
     CREDIT_MEMO_LINES,
     CREDIT_MEMO_SEED_DRAFT_ID,
@@ -142,6 +143,9 @@ interface SeedContext {
 // The one settings row, made by migration 2100000001.
 const SETTINGS_ROW_ID = 'bookssettings01'
 const SEED_BUSINESS_NAME = 'Hartwell Supply Co.'
+// The Company address, which a new purchase order's Ship to starts with (purchase order
+// spec §3.3) after the business name, as the purchase orders fixture's DEFAULT_SHIP_TO.
+const SEED_BUSINESS_ADDRESS = COMPANY_SETTINGS.address
 
 // [account key, debit, credit] in cents
 type SeedLine = [string, number, number]
@@ -268,8 +272,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // The settings row keeps setup_started and setup_completed false, so the seeded book (which already has accounts) shows the wizard's populated-book path.
     // The business name is required to save the Company form, and reports and the customer
     // pages print it. It is seeded so no e2e has to write it: specs on parallel workers read it.
+    // The address is seeded for the same reason: a new purchase order's Ship to reads it.
     await pb.collection('books_settings').update(SETTINGS_ROW_ID, {
         business_name: SEED_BUSINESS_NAME,
+        address: SEED_BUSINESS_ADDRESS,
     })
     const year = new Date().getFullYear()
     const ids = new Map<string, string>()

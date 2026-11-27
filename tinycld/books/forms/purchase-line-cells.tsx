@@ -238,8 +238,12 @@ export function LinePurchaseProductCell(props: BuiltinFieldProps) {
     }
     const id = textOf(value)
     const opensOnFocus = useOpensWhenAdded(fieldKey, table, id === '')
+    // The kind says whether its line names the Vendor part no. (a purchase order's, spec Q17).
+    const { kind } = useDocumentFormScope()
+    const showsPartNo = kind.showsVendorPartNo
     return (
         <ProductPicker
+            showsPartNo={showsPartNo}
             purpose="purchases"
             types={PURCHASE_ITEM_TYPES}
             value={id}

@@ -1,6 +1,8 @@
 import { and, eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
+import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { router, useIsFocused } from 'expo-router'
 import { useEffect, useRef } from 'react'
 import type { CodedCollectionName } from '../lib/record-code'
@@ -12,6 +14,7 @@ import { useRouteKeyStore } from '../stores/route-key-store'
 const DOCUMENT_SCREENS = {
     books_invoices: 'invoices/[id]',
     books_estimates: 'estimates/[id]',
+    books_purchase_orders: 'purchase-orders/[id]',
     books_sales_receipts: 'sales-receipts/[id]',
     books_payments: 'payments/[id]',
     books_credit_memos: 'credit-memos/[id]',
@@ -55,18 +58,28 @@ function useFirstRead(key: string, id: string | undefined): string | undefined {
     return first.current?.key === key ? first.current.id : id
 }
 
-// The record id a document route's key names, or undefined while it is read. A number key
-// reads the documents of that sequence: the void original of a correction shares it, so
-// the one that no correction replaced is the document. A key that names no document gives
-// the key back, so the screen shows its own not-found state.
+// What a document route's key read gives its route: the record id (undefined while it is
+// read, or when the read failed), whether the number-key read failed (the route shows its
+// screen's load error, with Retry), and the Retry that restarts that read.
+export type DocumentRouteRead = {
+    id: string | undefined
+    isError: boolean
+    retry: () => void
+}
+
+// The record id a document route's key names. A number key reads the documents of that
+// sequence: the void original of a correction shares it, so the one that no correction
+// replaced is the document. A key that names no document gives the key back, so the screen
+// shows its own not-found state. A refused number-key read gives `isError` until Retry
+// restarts it (a failed live query does not recover on a reload of its collection).
 export function useDocumentRouteId(
     collectionName: DocumentCollectionName,
     key: string | undefined
-): string | undefined {
+): DocumentRouteRead {
     const urlKey = key ?? ''
     const parsed = parseRecordKey(urlKey)
     const [collection] = useStore(collectionName)
-    const { data, isReady } = useLiveQuery({
+    const query = useLiveQuery({
         query: q => {
             // An id key names its record itself: no read, so the screen's own read is the
             // only one (a refused read shows the screen's error).
@@ -75,13 +88,21 @@ export function useDocumentRouteId(
         },
         queryKey: ['books.route-record', collectionName, urlKey],
     })
-    const doc = (data ?? []).find(row => !('replaced_by' in row) || !row.replaced_by)
+    const doc = (query.data ?? []).find(row => !('replaced_by' in row) || !row.replaced_by)
     const id = useFirstRead(urlKey, doc?.id)
     useRememberKey(DOCUMENT_SCREENS[collectionName], urlKey, id)
-    if (parsed.kind === 'id') return parsed.id
-    if (id) return id
-    if (!isReady) return undefined
-    return urlKey
+    const retry = () => {
+        void recoverLiveQueries({
+            queries: [query.collection],
+            sources: [collection],
+            onError: err => log.error('books.route-record', err, { collectionName }),
+        })
+    }
+    if (parsed.kind === 'id') return { id: parsed.id, isError: false, retry }
+    if (id) return { id, isError: false, retry }
+    if (query.isError) return { id: undefined, isError: true, retry }
+    if (!query.isReady) return { id: undefined, isError: false, retry }
+    return { id: urlKey, isError: false, retry }
 }
 
 // A route opened by a code follows its record's code: after the code changes, the URL

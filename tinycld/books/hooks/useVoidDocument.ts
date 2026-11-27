@@ -5,11 +5,12 @@ import type { ListKind } from '../lib/document-list'
 /**
  * Void of a posted document of any list kind, shared by the read views and the lists: the
  * kind's collection writes `status: 'void'` (the server posts the reversing entry). An
- * estimate has no void, so it throws; a write-off is voided on its own page
- * (hooks/useVoidWriteOff.ts) and no list menu offers its void, so it throws too. Returns
- * the pbtsdb transaction for a `useMutation` generator to yield.
+ * estimate and a purchase order have no void (orderReadActions offers none), so each
+ * throws; a write-off is voided on its own page (hooks/useVoidWriteOff.ts) and no list menu
+ * offers its void, so it throws too. Returns the pbtsdb transaction for a `useMutation`
+ * generator to yield.
  */
-export function useVoidDocument(): (kind: ListKind, id: string) => Transaction {
+export function useVoidDocument(): (kind: ListKind | 'purchase_order', id: string) => Transaction {
     const [invoices, receipts, payments, memos, refunds] = useStore(
         'books_invoices',
         'books_sales_receipts',
@@ -68,6 +69,8 @@ export function useVoidDocument(): (kind: ListKind, id: string) => Transaction {
                 })
             case 'estimate':
                 throw new Error('an estimate never voids')
+            case 'purchase_order':
+                throw new Error('a purchase order never voids')
             case 'write_off':
                 throw new Error('a write-off is voided on its own page')
         }

@@ -207,6 +207,7 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         copyStatus: isNew && input.copy ? copyStatus : undefined,
         estimateStatus: isFromEstimate ? estimateStatus : undefined,
         sourceAllowed: isFromSource ? sourceAllowed : undefined,
+        isEdit: input.isEdit,
     })
     shownSourceForm.note(state)
     const sourceLines = reads.sourceLines.data

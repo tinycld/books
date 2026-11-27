@@ -9,15 +9,16 @@ import type { BooksSettings } from '../../types'
 import { FieldNote, ReadOnlyRow } from './SectionCard'
 
 export const PURCHASE_LINES_NOTE =
-    'Which line tables new bills, expenses and vendor credits show. A form still shows a table its record already has lines in.'
+    'Which line tables new bills, expenses, vendor credits and purchase orders show. A form still shows a table its record already has lines in.'
 
 interface PurchaseLinesFormProps {
     settings: BooksSettings
     isAdmin: boolean
 }
 
-// "Purchase lines" (expense form spec §3.10, vendor credit spec §3.8): one setting for the
-// line tables of new bills, expenses and vendor credits. An admin edits it on the card's
+// "Purchase lines" (expense form spec §3.10, vendor credit spec §3.8, purchase order spec
+// §3.4): one setting for the line tables of new bills, expenses, vendor credits and
+// purchase orders. An admin edits it on the card's
 // own Save; everyone else reads it (the books_settings update rule is admin-only).
 export function PurchaseLinesForm({ settings, isAdmin }: PurchaseLinesFormProps) {
     if (!isAdmin) {

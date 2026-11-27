@@ -154,3 +154,15 @@ export function useLandOnRoute(name: string): () => void {
         navigation.dispatch(hasRoute ? StackActions.popTo(name) : StackActions.replace(name))
     }, [navigation, name])
 }
+
+// useLandOnRoute for the first screen of a child stack (a kind's `index` route): the move
+// happens in the Books root stack, the child stack's parent, so the kind route and its
+// child stack leave with this screen. Only for a child stack's first screen.
+export function useLandOnRootRoute(name: string): () => void {
+    const navigation = useNavigation()
+    return useCallback(() => {
+        const root = navigation.getParent() ?? navigation
+        const hasRoute = root.getState()?.routes.some(route => route.name === name)
+        root.dispatch(hasRoute ? StackActions.popTo(name) : StackActions.replace(name))
+    }, [navigation, name])
+}

@@ -8,6 +8,7 @@ import {
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
+    PURCHASE_ORDER_KIND,
     REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     VENDOR_CREDIT_KIND,
@@ -68,6 +69,7 @@ const LABELS: Record<string, string> = {
             EXPENSE_KIND,
             VENDOR_CREDIT_KIND,
             REFUND_RECEIPT_KIND,
+            PURCHASE_ORDER_KIND,
         ].map(kind => [documentStackRouteName(kind), kind.noun])
     ),
 }

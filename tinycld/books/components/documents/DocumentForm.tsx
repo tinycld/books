@@ -1,20 +1,18 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { errorToString } from '@tinycld/core/lib/errors'
 import type { FormDefinition } from '@tinycld/core/lib/forms/definition'
 import { log } from '@tinycld/core/lib/logger'
-import { useMutation } from '@tinycld/core/lib/mutations'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { formatHint, ScopeProvider } from '@tinycld/core/lib/shortcuts'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { FormErrorSummary } from '@tinycld/core/ui/form'
 import { FormRenderer, NARROW_BELOW } from '@tinycld/core/ui/forms'
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
-import { useFocusEffect } from 'expo-router'
+import { router } from 'expo-router'
 import {
     type ComponentProps,
     type ComponentType,
     type ReactNode,
-    useCallback,
     useEffect,
     useId,
     useMemo,
@@ -26,8 +24,12 @@ import { SELF_HINTED_FIELDS } from '../../forms/document-fields'
 import { estimateNumberOf, expiredOnOf, payoutMemoOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { useCopyEstimateLink } from '../../hooks/useCopyEstimateLink'
-import { useDeleteDraftDocument } from '../../hooks/useDeleteDraftDocument'
 import { useDocumentAttachments } from '../../hooks/useDocumentAttachments'
+import {
+    deleteDialogTexts,
+    useDocumentDelete,
+    useScreenHoldRelease,
+} from '../../hooks/useDocumentDelete'
 import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocumentForm'
 import { useDocumentSave } from '../../hooks/useDocumentSave'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
@@ -47,8 +49,8 @@ import {
 import { documentFormTitle } from '../../lib/document-form-title'
 import { canDeleteStatus, type DocumentStatus, quoteStatusOf } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
-import type { DocumentTab } from '../../lib/document-routes'
-import type { SendKind } from '../../lib/document-send'
+import { type DocumentTab, documentHref } from '../../lib/document-routes'
+import { isSendKind, type SendKind } from '../../lib/document-send'
 import {
     linkSourceLabel,
     payoutUnappliedText,
@@ -60,6 +62,7 @@ import { lineTableRows } from '../../lib/document-values'
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { focusScreenControl } from '../../lib/focus-return'
 import { formatMoney } from '../../lib/money'
+import { purchaseTabOf } from '../../lib/purchase-lists'
 import type { PayoutLimits } from '../../lib/refund-payout'
 import { todayIso } from '../../lib/register-range'
 import { documentConflictText } from '../../lib/revision'
@@ -67,12 +70,11 @@ import { rootErrorOnly } from '../../lib/root-errors'
 import {
     DOCUMENT_PARTIES,
     type DocumentFeatures,
+    type DocumentLifecycle,
     type DocumentLineTable,
     type SalesDocumentKind,
 } from '../../lib/sales-document-kinds'
-import { isSendDocType } from '../../lib/send-doc-types'
 import { hasSessionChanges, useAttachmentsStore } from '../../stores/attachments-store'
-import { useDocumentSaveStore } from '../../stores/document-save-store'
 import type { BooksEstimates } from '../../types'
 import { ConflictNotice } from '../ConflictNotice'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
@@ -270,66 +272,6 @@ function useDocumentTotals(form: EngineForm, scope: DocumentFormScope) {
     return { view, figure, amounts }
 }
 
-// Delete draft: the dialog is local UI no other component needs. The delete removes the
-// row from the store at once, so the screen holds the form (and this dialog) before it
-// starts: a refusal stays in the dialog, with the user's edits behind it, until the next
-// attempt. A success leaves; the hold ends when the screen goes (useScreenHoldRelease).
-// Every kind deletes through the write the lists share.
-function useDocumentDelete(
-    kind: SalesDocumentKind,
-    documentId: string | undefined,
-    leave: () => void
-) {
-    const hold = useDocumentSaveStore(s => s.hold)
-    const release = useDocumentSaveStore(s => s.release)
-    const deleteWrite = useDeleteDraftDocument()
-    const [isOpen, setOpen] = useState(false)
-    const remove = useMutation({
-        mutationFn: function* (id: string) {
-            yield deleteWrite(kind.key, id)
-        },
-        onSuccess: () => {
-            setOpen(false)
-            leave()
-        },
-        onError: (_error, id) => release(id),
-    })
-    const errorMessage = remove.error ? errorToString(remove.error) : null
-    const open = () => {
-        remove.reset()
-        setOpen(true)
-    }
-    const confirm = () => {
-        if (!documentId) return
-        hold(documentId)
-        remove.mutate(documentId)
-    }
-    return {
-        isOpen,
-        isPending: remove.isPending,
-        // The delete succeeded and its `leave()` runs: true from the same update that ends
-        // `isPending`, until `open()` resets it.
-        isSuccess: remove.isSuccess,
-        errorMessage,
-        open,
-        confirm,
-        cancel: () => setOpen(false),
-    }
-}
-
-// A hold of this document (a delete that succeeded) ends when the user leaves the screen.
-function useScreenHoldRelease(documentId: string | undefined) {
-    const release = useDocumentSaveStore(s => s.release)
-    useFocusEffect(
-        useCallback(
-            () => () => {
-                if (documentId) release(documentId)
-            },
-            [documentId, release]
-        )
-    )
-}
-
 // Whether core draws the lines table as cards: it measures the table's container and
 // switches below NARROW_BELOW. The lines renderers are the only children of the measured
 // view and take its full width, so they all read the same width.
@@ -504,21 +446,24 @@ function useClearLineCountError(form: EngineForm, errorKey: string, tableKeys: s
 // Post's line-count error, under the first shown table of a form with several tables
 // (DocumentFormState.lineCountError). Read through useFormState, so a submit that files or
 // clears it re-renders this line only.
+// `isShown` false (a kind whose error summary shows it) keeps only the clearing.
 function LineCountError({
     form,
     errorKey,
     tableKeys,
     testID,
+    isShown,
 }: {
     form: EngineForm
     errorKey: string
     tableKeys: string[]
     testID: string
+    isShown: boolean
 }) {
     useClearLineCountError(form, errorKey, tableKeys)
     const { errors } = useFormState({ control: form.control, name: errorKey })
     const message = errors[errorKey]?.message
-    if (typeof message !== 'string' || message === '') return null
+    if (!isShown || typeof message !== 'string' || message === '') return null
     return (
         <Text testID={testID} accessibilityRole="alert" className="text-xs text-destructive">
             {message}
@@ -531,12 +476,14 @@ function SectionLineCountError({ state, part }: { state: DocumentFormState; part
     if (!rule || rule.tableKey !== part.table.key) return null
     const testID = `${state.kind.testId}-line-error`
     const tableKeys = state.kind.lineTables.map(table => table.key)
+    const isShown = !LINE_COUNT_IN_SUMMARY[state.kind.lifecycle]
     return (
         <LineCountError
             form={state.form as EngineForm}
             errorKey={rule.errorKey}
             tableKeys={tableKeys}
             testID={testID}
+            isShown={isShown}
         />
     )
 }
@@ -662,8 +609,31 @@ function ReplaceNote({ kind, number }: { kind: SalesDocumentKind; number: string
     )
 }
 
-function ErrorSummary({ form, testID }: { form: EngineForm; testID: string }) {
-    const message = form.formState.errors.root?.server?.message
+// Where a kind's line-count error shows (keyed by DocumentLifecycle): under the first
+// shown table (a posting kind's Post rule, beside the lines), or in the error summary (an
+// order: its save rule is one of the form's own refusals, purchase order spec §3.3).
+const LINE_COUNT_IN_SUMMARY: Record<DocumentLifecycle, boolean> = {
+    posting: false,
+    quote: false,
+    order: true,
+}
+
+// The server's (or the save's) root error; and, for a kind that shows it here, the
+// line-count error the save filed at `lineCountKey`. The server's answer comes first.
+function ErrorSummary({
+    form,
+    testID,
+    lineCountKey,
+}: {
+    form: EngineForm
+    testID: string
+    lineCountKey: string | undefined
+}) {
+    const { errors: formErrors } = useFormState({ control: form.control })
+    const lineCount = lineCountKey ? formErrors[lineCountKey]?.message : undefined
+    const lineCountMessage =
+        typeof lineCount === 'string' && lineCount !== '' ? lineCount : undefined
+    const message = formErrors.root?.server?.message ?? lineCountMessage
     const errors = rootErrorOnly({ root: { message } })
     return (
         <FormErrorSummary
@@ -787,30 +757,77 @@ function canDeleteOf(
     return !isNew && status !== undefined && canDeleteStatus(kind.lifecycle, status)
 }
 
+// The form's parts by the kind's lifecycle (an exhaustive switch, so a new lifecycle fails
+// tsc until it has its answers): `hasSaveBar` draws DocumentSaveBar (Save, Save & close,
+// Save & new) in place of the posting bar; `formStatus` is the badge's status before a
+// record is stored (a posting form shows only drafts; a new estimate is Pending, a new
+// order Open); `badgeBeforeStored` draws that badge on a form whose record is not stored
+// (an order has none until its first Save creates it as Open, purchase order spec §3.3,
+// §3.5); `isQuote` adds the estimate's own parts (its decline note, its customer link,
+// Convert to invoice, Save and send).
+function formLifecycleOf(lifecycle: DocumentLifecycle): {
+    hasSaveBar: boolean
+    formStatus: DocumentStatus
+    badgeBeforeStored: boolean
+    isQuote: boolean
+} {
+    switch (lifecycle) {
+        case 'posting':
+            return {
+                hasSaveBar: false,
+                formStatus: 'draft',
+                badgeBeforeStored: true,
+                isQuote: false,
+            }
+        case 'quote':
+            return {
+                hasSaveBar: true,
+                formStatus: 'pending',
+                badgeBeforeStored: true,
+                isQuote: true,
+            }
+        case 'order':
+            return {
+                hasSaveBar: true,
+                formStatus: 'open',
+                badgeBeforeStored: false,
+                isQuote: false,
+            }
+    }
+}
+
+// Whether the form leaves to its own read view and All purchases (useFormLeave): an order's.
+// Keyed by DocumentLifecycle, so a new lifecycle fails tsc until it has its answer.
+const LEAVES_TO_READ_VIEW: Record<DocumentLifecycle, boolean> = {
+    posting: false,
+    quote: false,
+    order: true,
+}
+
+// Where the form leaves to. Cancel: a saved purchase order's form goes to its read view
+// (spec §3.2), which replaces the `?edit=1` route; every other form, and a new order, goes
+// the screen's way back. A delete: an order's form opens All purchases (the read view the
+// form replaced is gone with it), pushed as the read view's delete is, so Back reaches
+// the deleted order's route; every other form goes the screen's way back.
+function useFormLeave(
+    kind: SalesDocumentKind,
+    record: DocumentScreenData['record'],
+    back: () => void
+) {
+    const orgHref = useOrgHref()
+    if (!LEAVES_TO_READ_VIEW[kind.lifecycle]) return { cancel: back, afterDelete: back }
+    const listHref = orgHref(purchaseTabOf('all').path)
+    const afterDelete = () => router.push(listHref)
+    if (!record) return { cancel: back, afterDelete }
+    const readHref = orgHref(documentHref(kind, record))
+    return { cancel: () => router.replace(readHref), afterDelete }
+}
+
 // Convert to invoice: a quote, while writes are available, on a Pending or Accepted
 // status in the form (a change to Rejected hides it before the save).
 function canConvertOf(kind: SalesDocumentKind, canWrite: boolean, status: unknown): boolean {
     if (kind.lifecycle !== 'quote' || !canWrite) return false
     return status === 'pending' || status === 'accepted'
-}
-
-// The delete confirm's words: a posting kind's draft defaults, or its own title and body
-// when it names them (a bill: "Delete this draft bill?"), keeping the draft dialog's action
-// and ids; or a quote kind's own (kind.messages: "Delete estimate 1001?", its body and its
-// action).
-function deleteDialogTexts(kind: SalesDocumentKind, number: string) {
-    const { deleteTitle, deleteBody, deleteAction } = kind.messages
-    if (kind.lifecycle === 'posting') {
-        if (!deleteTitle || !deleteBody) return {}
-        return { title: deleteTitle, body: deleteBody }
-    }
-    if (!deleteTitle || !deleteBody || !deleteAction) return {}
-    return {
-        title: deleteTitle.replace('%s', number),
-        body: deleteBody,
-        actionLabel: deleteAction,
-        testIdPrefix: `${kind.testId}-delete`,
-    }
 }
 
 // Download PDF of the saved draft, from the More row and ⌘P. A new form has nothing
@@ -908,12 +925,16 @@ export function DocumentForm({
         if (tab === 'pdf') openDocumentTab('edit')
     }
     const estimateId = state.estimate || estimateIdOf(data.record)
-    const { onBack: leave } = useBackToEntries(estimateId)
+    const { onBack: back } = useBackToEntries(estimateId)
+    const leaves = useFormLeave(kind, data.record, back)
+    const leave = leaves.cancel
     // A kind sent by email offers Post and send or Save and send (email-share spec §3.3
     // "Form"); a quote's form draws its own Send dialog, which Save and send of an
-    // unchanged stored quote opens at once.
-    const sendKind = isSendDocType(kind.key) && kind.features.email ? kind.key : null
-    const isQuoteKind = kind.lifecycle === 'quote'
+    // unchanged stored quote opens at once. A purchase order is sent from its read view
+    // only (isSendKind: not a form's send kind).
+    const sendKind = isSendKind(kind.key) && kind.features.email ? kind.key : null
+    const lifecycleParts = formLifecycleOf(kind.lifecycle)
+    const isQuoteKind = lifecycleParts.isQuote
     const sendOwner = useId()
     const save = useDocumentSave(state, {
         tab,
@@ -998,7 +1019,7 @@ export function DocumentForm({
     // The stored draft: the route's own, or the one a new form wrote before its post was
     // refused.
     const draftId = state.recordId ?? save.writtenId ?? undefined
-    const deletion = useDocumentDelete(kind, draftId, leave)
+    const deletion = useDocumentDelete(kind, draftId, leaves.afterDelete)
     useScreenHoldRelease(draftId)
     const canDelete = canDeleteOf(kind, state.isNew, data.record?.status, save.writtenId)
     const convertStatus = useWatch({ control: form.control, name: 'status' })
@@ -1090,21 +1111,27 @@ export function DocumentForm({
     const onSaveAndClose = () => {
         void save.saveAndClose()
     }
-    const isQuote = kind.lifecycle === 'quote'
-    // The PDF tab's save of a new form: the bar's Save draft, or a quote's Save.
-    const onPdfSave = isQuote ? onSave : onSaveDraft
+    const isQuote = lifecycleParts.isQuote
+    const hasSaveBar = lifecycleParts.hasSaveBar
+    // The PDF tab's save of a new form: the bar's Save draft, or a quote's or an order's Save.
+    const onPdfSave = hasSaveBar ? onSave : onSaveDraft
     // Download PDF only on a kind with a PDF.
     const moreItems = kind.features.pdf ? [pdf.item] : []
     const footer = footerOf(parts.footer, kind.features)
     const pdfDocumentId = draftId ?? null
-    // A quote is titled by its stored number, so it reads as stored only once its row is
-    // here (a written id alone has no number yet); a posting draft is stored once written.
-    const isStored = isQuote ? data.record !== undefined : draftId !== undefined
+    // A quote and an order are titled by the stored number, so each reads as stored only
+    // once its row is here (a written id alone has no number yet); a posting draft is
+    // stored once written.
+    const isStored = hasSaveBar ? data.record !== undefined : draftId !== undefined
     const title = documentFormTitle(kind, data.replacesNumber, isStored, data.record?.number ?? '')
     // A posting form shows only drafts: a post's optimistic status shows here only once
-    // the read view replaces the form. A quote's badges follow its saved row (a new one is
-    // Pending), never the unsaved Status.
-    const status = isQuote ? (data.record?.status ?? 'pending') : 'draft'
+    // the read view replaces the form. A quote's and an order's badges follow the saved row
+    // (a new estimate is Pending; a new order has no badge until stored), never the unsaved
+    // Status.
+    const status = hasSaveBar ? (data.record?.status ?? lifecycleParts.formStatus) : 'draft'
+    // The kind's own badge of the saved row (an order's "Partly received").
+    const recordBadge = data.record ? documentKind.recordBadge?.(data.record) : undefined
+    const isBadgeHidden = !isStored && !lifecycleParts.badgeBeforeStored
     const isExpired = expiredOn !== null
     const isEditTab = tab === 'edit'
     const isPdfTab = tab === 'pdf'
@@ -1112,7 +1139,7 @@ export function DocumentForm({
     // A queued Save and send opens its dialog once no save runs.
     const isSendable = !save.isSaving
     const convertAction = isQuote ? { isOffered: canConvert, onPress: onConvert } : null
-    const removeAction = isQuote ? { isOffered: canDelete, onPress: deletion.open } : null
+    const removeAction = hasSaveBar ? { isOffered: canDelete, onPress: deletion.open } : null
     // Only a stored quote has a customer link: a new form never shows the action.
     const copyLinkAction =
         isQuote && data.record !== undefined
@@ -1139,6 +1166,9 @@ export function DocumentForm({
         conflict: `${kind.testId}-conflict`,
         lines: `${kind.testId}-lines`,
     }
+    const summaryLineCountKey = LINE_COUNT_IN_SUMMARY[kind.lifecycle]
+        ? state.lineCountError?.errorKey
+        : undefined
     const conflictText = documentConflictText(kind.noun, kind.lifecycle)
     const conflictAction = `Load the current ${kind.noun.toLowerCase()}`
     // The form's files are pending until a save (spec §3.2). The form is only a writer's,
@@ -1184,6 +1214,8 @@ export function DocumentForm({
                                     status={status}
                                     figure={totals.figure}
                                     isExpired={isExpired}
+                                    badge={recordBadge}
+                                    isBadgeHidden={isBadgeHidden}
                                 />
                                 <ReplaceNote kind={kind} number={data.replacesNumber} />
                                 <DocumentTabs
@@ -1191,7 +1223,11 @@ export function DocumentForm({
                                     firstLabel="Edit"
                                     scopeOwner={shortcuts.scopeOwner}
                                 />
-                                <ErrorSummary form={form} testID={ids.errorSummary} />
+                                <ErrorSummary
+                                    form={form}
+                                    testID={ids.errorSummary}
+                                    lineCountKey={summaryLineCountKey}
+                                />
                                 <ConflictNotice
                                     isVisible={save.isConflict}
                                     text={conflictText}
@@ -1234,7 +1270,7 @@ export function DocumentForm({
                                 </TabPanel>
                             </ScrollView>
                             <PostingActionBar
-                                isVisible={!isQuote}
+                                isVisible={!hasSaveBar}
                                 isSaving={save.isSaving}
                                 canDeleteDraft={canDelete}
                                 isPhone={isPhone}
@@ -1248,7 +1284,7 @@ export function DocumentForm({
                                 scopeOwner={shortcuts.scopeOwner}
                             />
                             <QuoteSaveBar
-                                isVisible={isQuote}
+                                isVisible={hasSaveBar}
                                 isSaving={save.isSaving}
                                 isPhone={isPhone}
                                 onCancel={cancel}

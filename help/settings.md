@@ -42,7 +42,9 @@ To choose which line tables new bills, expenses and vendor credits show, open Se
 - Accounts only: a new bill, expense or vendor credit shows Account details only.
 - Products only: a new bill, expense or vendor credit shows Product and service details only.
 
-A table that the setting hides still shows on a bill, expense or vendor credit that already has lines in it, so editing an older one never loses lines. For more, see [Bills](help://books:bills), [Expenses](help://books:expenses) and [Vendor credits](help://books:vendor-credits).
+The same setting decides the tables of a new purchase order.
+
+A table that the setting hides still shows on a bill, expense, vendor credit or purchase order that already has lines in it, so editing an older one never loses lines. For more, see [Bills](help://books:bills), [Expenses](help://books:expenses), [Vendor credits](help://books:vendor-credits) and [Purchase orders](help://books:purchase-orders).
 
 ## Numbering
 

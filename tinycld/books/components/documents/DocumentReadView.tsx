@@ -3,6 +3,7 @@ import { useFormHost } from '@tinycld/core/lib/forms/use-form-hosts'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
+import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
 import { router } from 'expo-router'
 import { type ReactNode, useId, useRef } from 'react'
 import { Pressable, ScrollView, Text, View, type ViewInstance } from 'react-native'
@@ -33,9 +34,9 @@ import {
 } from '../../lib/credit-application-kinds'
 import { depositEntryOf } from '../../lib/deposit'
 import { removeApplicationOffered } from '../../lib/document-actions'
-import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
+import { memoLabelFor, messageLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
-import { sendOffered } from '../../lib/document-send'
+import { isSendKind, sendOffered } from '../../lib/document-send'
 import { documentTaxOf } from '../../lib/document-tax'
 import { NO_PARTY_TEXT } from '../../lib/document-texts'
 import { lineTableSubtotals } from '../../lib/document-values'
@@ -44,10 +45,14 @@ import { focusScreenControl } from '../../lib/focus-return'
 import { DOCUMENT_COLLECTIONS } from '../../lib/history-route'
 import { formatMoney, MINUS } from '../../lib/money'
 import { formatDay, todayIso } from '../../lib/register-range'
-import { DOCUMENT_PARTIES, type SalesDocumentKind } from '../../lib/sales-document-kinds'
+import {
+    DOCUMENT_PARTIES,
+    type DocumentLifecycle,
+    type SalesDocumentKind,
+} from '../../lib/sales-document-kinds'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
-import { isSendDocType } from '../../lib/send-doc-types'
 import { InDepositNotice } from '../deposits/InDepositNotice'
+import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
 import { WriteOffDialog } from '../write-offs/WriteOffDialog'
@@ -88,16 +93,24 @@ const LINK_STYLE = { minHeight: 44 }
 // snapshot rows (no line was taxable) shows the rate's name and the stored tax total, as
 // there is no snapshot percent to show.
 // A kind without sales tax (`features.tax`) has no tax line.
+// Only a post writes the snapshot, so a lifecycle with no post has none (keyed by
+// DocumentLifecycle, so a new lifecycle fails tsc until it has its answer; an order has no
+// tax, so its answer is never read).
+const HAS_TAX_SNAPSHOT: Record<DocumentLifecycle, boolean> = {
+    posting: true,
+    quote: false,
+    order: false,
+}
+
 function readTaxLine(
     data: DocumentScreenData,
     record: DocumentRecord,
     doc: Pick<SalesDocumentKind, 'lifecycle' | 'features'>
 ): DocumentTotalsView['tax'] {
-    const { lifecycle } = doc
     if (!doc.features.tax || !record.tax_rate) return null
     const amount = (cents: number) => formatMoney(cents, data.currency)
     const name = record.taxRateRow?.name ?? 'Tax'
-    if (lifecycle === 'quote') {
+    if (!HAS_TAX_SNAPSHOT[doc.lifecycle]) {
         const { label } = documentTaxOf(data.taxOptions.rows, record.tax_rate)
         return { label: label ?? name, amount: amount(record.tax_total) }
     }
@@ -433,20 +446,42 @@ interface FooterProps {
     isPhone: boolean
     totals: DocumentTotalsView
     message: string
+    // "Message to vendor (printed)" on a vendor kind (messageLabelFor).
+    messageLabel: string
     memo: string
     memoLabel: string
     // The Attachments section, under Memo in the notes column (a phone stacks it after
     // Memo); null for a kind without it.
     attachments: ReactNode
+    // The width below which the totals stack over the notes, as on a phone (a purchase
+    // order's: where its lines are cards; DocumentKind.readFooterStacksBelow); 0 for none.
+    stacksBelow: number
 }
 
-function ReadFooter({ isPhone, totals, message, memo, memoLabel, attachments }: FooterProps) {
-    const notesClass = isPhone ? 'gap-3' : 'min-w-0 flex-1 gap-3'
+// Stacked on a phone, and below the kind's width once the footer is measured.
+function isFooterStacked(isPhone: boolean, width: number, stacksBelow: number): boolean {
+    if (isPhone) return true
+    return width > 0 && width < stacksBelow
+}
+
+function ReadFooter({
+    isPhone,
+    totals,
+    message,
+    messageLabel,
+    memo,
+    memoLabel,
+    attachments,
+    stacksBelow,
+}: FooterProps) {
+    const { width, onLayout } = useContainerWidth()
+    const isStacked = isFooterStacked(isPhone, width, stacksBelow)
+    const notesClass = isStacked ? 'gap-3' : 'min-w-0 flex-1 gap-3'
     const notes = (
         <View className={notesClass}>
             <DocumentDetail
                 field="message"
-                label={DOCUMENT_NOTE_LABELS.message}
+                label={messageLabel}
                 value={message}
                 valueSuffix="message"
             />
@@ -454,16 +489,16 @@ function ReadFooter({ isPhone, totals, message, memo, memoLabel, attachments }: 
             {attachments}
         </View>
     )
-    if (isPhone) {
+    if (isStacked) {
         return (
-            <View className="gap-4">
+            <View className="gap-4" onLayout={onLayout}>
                 <DocumentTotalsPanel totals={totals} />
                 {notes}
             </View>
         )
     }
     return (
-        <View className="flex-row gap-6">
+        <View className="flex-row gap-6" onLayout={onLayout}>
             {notes}
             <View className="min-w-0 flex-1" style={WIDE_TOTALS}>
                 <DocumentTotalsPanel totals={totals} />
@@ -494,7 +529,7 @@ function ReadSendDialog({
     returnFocus: () => void
 }) {
     const kind = record.kindFields.kind
-    if (!canWrite || !isSendDocType(kind)) return null
+    if (!canWrite || !isSendKind(kind)) return null
     const isSendable = sendOffered(kind, record.status)
     return (
         <SendDocumentDialog
@@ -509,7 +544,7 @@ function ReadSendDialog({
 // The sent line under the status (email-share spec §3.6) of a sent-able kind.
 function ReadSentLine({ record, testId }: { record: DocumentRecord; testId: string }) {
     const kind = record.kindFields.kind
-    if (!isSendDocType(kind)) return null
+    if (!isSendKind(kind)) return null
     return <DocumentSentLine kind={kind} documentId={record.id} testID={`${testId}-sent-line`} />
 }
 
@@ -601,10 +636,28 @@ function SectionReadFrame({
     )
 }
 
+// A line under the title (DocumentScreen's closed-edit notice of a closed order). A quiet
+// row: the secondary surface with a border, so it does not outweigh the document.
+export type ReadNoticeView = { testID: string; message: string }
+
+function ReadNotice({ notice }: { notice: ReadNoticeView | undefined }) {
+    if (!notice) return null
+    return (
+        <View
+            testID={notice.testID}
+            className="rounded-md border border-border bg-surface-secondary px-3 py-2"
+            accessibilityRole="alert"
+        >
+            <Text className="text-sm text-foreground">{notice.message}</Text>
+        </View>
+    )
+}
+
 interface DocumentReadViewProps {
     data: DocumentScreenData
     record: DocumentRecord
     tab: DocumentTab
+    notice?: ReadNoticeView
 }
 
 /**
@@ -626,7 +679,7 @@ interface DocumentReadViewProps {
  * bar's actions follow the lifecycle's read actions for the user's
  * access (useDocumentReadActions); their keys are in this screen's `compose` scope.
  */
-export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
+export function DocumentReadView({ data, record, tab, notice }: DocumentReadViewProps) {
     const documentKind = useDocumentKind()
     const { doc } = documentKind
     const scopeOwner = useShortcutScope('compose')
@@ -667,6 +720,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     // A kind without a message to the customer shows none (an empty detail is not drawn).
     const message = doc.features.message ? record.message : ''
     const memoLabel = memoLabelFor(doc.features)
+    const messageLabel = messageLabelFor(doc)
     const address = addressLines(record, doc).join('\n')
     const partyName = partyNameOf(data, record, doc)
     const date = record.date ? formatDay(record.date) : ''
@@ -693,8 +747,13 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
             onRetry={retry}
         />
     ) : null
-    const badge = readBadgeOf(record, documentKind.balanceBadge, refunded)
+    // A kind's own badge of the record (an order's Partly received), else a balance badge.
+    const badge =
+        documentKind.recordBadge?.(record) ??
+        readBadgeOf(record, documentKind.balanceBadge, refunded)
+    const footerStacksBelow = documentKind.readFooterStacksBelow?.(data.lines) ?? 0
     const sentLine = <ReadSentLine record={record} testId={doc.testId} />
+    const isActionBusy = read.voidDialog.isPending || read.deleteDialog.isPending
     const body = (
         <>
             <ReadBand
@@ -710,9 +769,11 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                 isPhone={isPhone}
                 totals={totals}
                 message={message}
+                messageLabel={messageLabel}
                 memo={record.memo}
                 memoLabel={memoLabel}
                 attachments={attachments}
+                stacksBelow={footerStacksBelow}
             />
             <PaymentsBlock
                 data={data}
@@ -757,6 +818,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                         badge={badge}
                         subline={sentLine}
                     />
+                    <ReadNotice notice={notice} />
                     <InDepositNotice
                         deposit={depositRead.deposit}
                         noun={noun}
@@ -779,12 +841,13 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                     actions={read.actions}
                     historyItem={historyItem}
                     isPhone={isPhone}
-                    isBusy={read.voidDialog.isPending}
+                    isBusy={isActionBusy}
                     hasPdf={doc.features.pdf}
                     recordKind={record.kindFields.kind}
                     scopeOwner={scopeOwner}
                 />
                 <VoidDialog {...read.voidDialog} />
+                <DeleteDraftDialog {...read.deleteDialog} />
                 <ReadWriteOffDialog owner={owner} isVisible={isInvoice} />
                 <ReadSendDialog
                     owner={owner}

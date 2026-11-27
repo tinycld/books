@@ -17,6 +17,17 @@ function lineCount(text: string): number {
     return text.split(/\r\n|\r|\n/).length
 }
 
+// A new order's Ship to (spec §3.3, Q8): the business name and each line of the address of
+// Settings → Company, one per line, with empty lines dropped. Kept within SHIP_TO_SCHEMA's
+// bounds, so the start value never blocks a save: at most SHIP_TO_MAX_LINES lines, cut at
+// SHIP_TO_MAX_LENGTH characters.
+export function shipToStartOf(settings: { business_name: string; address: string }): string {
+    const lines = [settings.business_name, ...settings.address.split(/\r\n|\r|\n/)]
+        .map(line => line.trim())
+        .filter(line => line !== '')
+    return lines.slice(0, SHIP_TO_MAX_LINES).join('\n').slice(0, SHIP_TO_MAX_LENGTH)
+}
+
 export const SHIP_TO_SCHEMA = z
     .string()
     .max(SHIP_TO_MAX_LENGTH, SHIP_TO_MESSAGES.tooLong)

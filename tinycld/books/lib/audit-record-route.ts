@@ -15,6 +15,7 @@ import {
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
+    PURCHASE_ORDER_KIND,
     REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
@@ -37,6 +38,7 @@ const DOCUMENT_KINDS = new Map<string, SalesDocumentKind>(
         BILL_KIND,
         EXPENSE_KIND,
         VENDOR_CREDIT_KIND,
+        PURCHASE_ORDER_KIND,
     ].map(kind => [DOCUMENT_COLLECTIONS[kind.key], kind])
 )
 

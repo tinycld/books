@@ -97,7 +97,7 @@ To keep the vendor's bill (a PDF or a photo) with the bill, add it in the Attach
 
 ## The Purchase lines setting
 
-To choose which tables a new bill shows, open Settings → Purchases and set **Purchase lines** on the Bills, expenses and vendor credits card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new expense and a new vendor credit. Only a Books admin can change Purchase lines; everyone else sees the setting.
+To choose which tables a new bill shows, open Settings → Purchases and set **Purchase lines** on the Bills, expenses and vendor credits card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new expense, a new vendor credit and a new purchase order. Only a Books admin can change Purchase lines; everyone else sees the setting.
 
 The setting only changes what the form shows. A table that the setting hides still shows on a bill that already has lines in it (a saved draft, an edit or a copy), so you never lose lines. Once a table shows on a form, it stays until you leave the form, even after you remove its last line. A posted bill shows every table that has lines. See [Settings](help://books:settings).
 

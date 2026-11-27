@@ -21,6 +21,11 @@ export const SEND_KINDS = [
 ] as const satisfies readonly (typeof SEND_DOC_TYPES)[number][]
 export type SendKind = (typeof SEND_KINDS)[number]
 
+// A kind the send dialog opens (SEND_KINDS).
+export function isSendKind(value: string): value is SendKind {
+    return SEND_KINDS.some(kind => kind === value)
+}
+
 export const DOCUMENT_SEND_PATH = '/api/books/documents/send'
 
 // How long the toast of a sent document (SendDocumentForm) or a sent batch (useBatchSend)

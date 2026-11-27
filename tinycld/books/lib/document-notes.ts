@@ -11,6 +11,12 @@ export const DOCUMENT_NOTE_LABELS = {
 // document and its PDF.
 export const VENDOR_MESSAGE_LABEL = 'Message to vendor (printed)'
 
+// The message's label for a kind, by its party (purchase order spec §3.1): "Message to
+// vendor (printed)" on a vendor kind, "Message to customer (printed)" on a customer kind.
+export function messageLabelFor(kind: { party: 'customer' | 'vendor' }): string {
+    return kind.party === 'vendor' ? VENDOR_MESSAGE_LABEL : DOCUMENT_NOTE_LABELS.message
+}
+
 // A kind with no message to the customer (a bill prints nothing) has only the memo, so
 // its label needs no "not printed" to tell the two notes apart.
 export const MEMO_ONLY_LABEL = 'Memo'

@@ -74,7 +74,11 @@ function useMoreKeys(kind: KeyKind, items: DocumentReadItem[], scopeOwner: Scope
     const instance = useId()
     const itemsRef = useRef(items)
     itemsRef.current = items
-    const names = items.map(item => item.id).join(',')
+    // A row with no key (Delete) registers none.
+    const names = items
+        .filter(item => keyOf(item) !== '')
+        .map(item => item.id)
+        .join(',')
     const { testId, shortcutGroup: group } = kind
     const shortcuts = useMemo<Shortcut[]>(() => {
         const ids = names === '' ? [] : names.split(',')
@@ -134,13 +138,27 @@ function usePdfKeyWhileBusy(
 // 9). Otherwise a posting document keeps Edit (a voided one has none, so all its actions are
 // in More) and a quote keeps its primary action, the first. A record with no `kind` (a
 // payment) has no primary action by kind, so it keeps Edit.
+// A quote and an order keep their first action (an order's: Copy to bill while offered,
+// else Edit, else Copy, else Download PDF; its Delete is never a bar button). Keyed by the
+// lifecycle, so a new lifecycle fails tsc until it has its answer.
+const KEEPS_FIRST_ACTION: Record<DocumentChrome['lifecycle'], boolean> = {
+    posting: false,
+    quote: true,
+    order: true,
+}
+
+// An action that is always a More row, at every width: an order's Delete (spec §3.6).
+function isMoreOnly(item: DocumentReadItem): boolean {
+    return item.action === 'delete'
+}
+
 function phoneButtonOf(
     lifecycle: DocumentChrome['lifecycle'],
     actions: DocumentReadItem[],
     kind: string | undefined
 ): DocumentReadItem | undefined {
     if (actions.length === 1) return actions[0]
-    if (lifecycle === 'quote') return actions[0]
+    if (KEEPS_FIRST_ACTION[lifecycle]) return actions[0]
     const actionIds = actions.map(item => item.action)
     const primary = kind === undefined ? undefined : phonePrimaryAction(kind, actionIds)
     const primaryItem = actions.find(item => item.action === primary)
@@ -157,7 +175,8 @@ function phoneButtonOf(
  * show their keys. A reader gets View journal entry and Download PDF on a posting
  * document, Download PDF on a quote; a hidden action's key is not registered. Audit
  * history (`historyItem`) is the last More row at every width, so a wide bar shows More
- * holding it alone, and a reader with no action still gets the bar. It reads the chrome
+ * holding it alone, and a reader with no action still gets the bar. An order's Delete is a
+ * More row at every width, before Audit history, with no key. It reads the chrome
  * (test ids, shortcut group, lifecycle), so a payment's read view draws it too.
  */
 export function DocumentReadActions({
@@ -170,9 +189,12 @@ export function DocumentReadActions({
     scopeOwner,
 }: DocumentReadActionsProps) {
     const doc = useDocumentChrome()
-    const phoneButton = phoneButtonOf(doc.lifecycle, actions, recordKind)
-    const inBar = isPhone ? (phoneButton ? [phoneButton] : []) : actions
-    const inMore = isPhone ? actions.filter(item => item !== phoneButton) : []
+    const barActions = actions.filter(item => !isMoreOnly(item))
+    const moreOnly = actions.filter(isMoreOnly)
+    const phoneButton = phoneButtonOf(doc.lifecycle, barActions, recordKind)
+    const inBar = isPhone ? (phoneButton ? [phoneButton] : []) : barActions
+    const barMore = isPhone ? barActions.filter(item => item !== phoneButton) : []
+    const inMore = [...barMore, ...moreOnly]
     useMoreKeys(doc, inMore, scopeOwner)
     usePdfKeyWhileBusy(doc, hasPdf, actions, scopeOwner)
     if (actions.length === 0 && historyItem === null) return null

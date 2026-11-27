@@ -10,6 +10,7 @@ import {
     customerPartyOf,
     type DocumentDataSource,
     type DocumentPartyRow,
+    type DocumentReadLine,
     type DocumentRecord,
     type DocumentSource,
     type DocumentStart,
@@ -22,6 +23,7 @@ import {
 import { ESTIMATE_DATA } from '../../hooks/estimate-data'
 import { EXPENSE_DATA } from '../../hooks/expense-data'
 import { INVOICE_DATA } from '../../hooks/invoice-data'
+import { PURCHASE_ORDER_DATA } from '../../hooks/purchase-order-data'
 import { REFUND_RECEIPT_DATA } from '../../hooks/refund-receipt-data'
 import { SALES_RECEIPT_DATA } from '../../hooks/sales-receipt-data'
 import type { CreditRefunds } from '../../hooks/useCreditRefunds'
@@ -53,6 +55,7 @@ import {
     type BalanceBadge,
     creditMemoBadge,
     paidBadge,
+    type StatusTone,
     vendorCreditBadge,
     writtenOffBadge,
 } from '../../lib/document-lifecycle'
@@ -95,6 +98,18 @@ import {
     type PurchaseLineValues,
 } from '../../lib/purchase-line-columns'
 import type { PurchaseLines } from '../../lib/purchase-lines'
+import {
+    EMPTY_PURCHASE_ORDER_COLUMNS,
+    purchaseOrderColumnsFrom,
+} from '../../lib/purchase-order-columns'
+import { purchaseOrderBadge } from '../../lib/purchase-order-status'
+import {
+    copyPurchaseOrderValues,
+    newPurchaseOrderValues,
+    type PurchaseOrderFormValues,
+    purchaseOrderReadTotals,
+    vendorOrderFills,
+} from '../../lib/purchase-order-values'
 import type { ColumnsParse } from '../../lib/record-columns'
 import {
     EMPTY_REFUND_RECEIPT_COLUMNS,
@@ -113,6 +128,7 @@ import {
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
+    PURCHASE_ORDER_KIND,
     REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
@@ -151,6 +167,8 @@ import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
 import { InvoiceApplyFrame } from './InvoiceApplyFrame'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { InvoiceSections } from './InvoiceSections'
+import { PurchaseOrderReadDetails, PurchaseOrderStamps } from './PurchaseOrderReadDetails'
+import { orderLinesCardsBelow, PurchaseOrderReadLines } from './PurchaseOrderReadLines'
 import { PurchaseReadLines } from './PurchaseReadLines'
 import { RefundReceiptLinkRow } from './RefundReceiptLinkRow'
 import { RefundReceiptBandRows, RefundReceiptReadDetails } from './RefundReceiptReadDetails'
@@ -286,12 +304,13 @@ export type DocumentStartValues =
     | BillFormValues
     | ExpenseFormValues
     | VendorCreditFormValues
+    | PurchaseOrderFormValues
 
 // What a vendor pick fills besides the vendor itself, keyed by built-in; the Vendor field
 // sets each returned key. `accountIsListed` says whether the Account picker lists the
 // vendor's default expense account; `current` is the form's values at the pick.
 export type PartyFills = (
-    vendor: Pick<BooksVendors, 'id' | 'address' | 'terms' | 'expense_account'>,
+    vendor: Pick<BooksVendors, 'id' | 'address' | 'email' | 'terms' | 'expense_account'>,
     accountIsListed: boolean,
     current: FormValues
 ) => Partial<FormValues>
@@ -425,6 +444,13 @@ export type DocumentKind = {
     // True makes the read view read the record's posted vendor refunds (useCreditRefunds):
     // the Refunded row and badge read their sum, the ReadFrame's Applied to block their rows.
     readRefunds?: boolean
+    // The header badge of a stored record that its status alone does not give (a purchase
+    // order's Partly received), on the read view and the form; undefined: the status's badge.
+    recordBadge?: (record: DocumentRecord) => { label: string; tone: StatusTone } | undefined
+    // The width of the read view under which its ReadLines draws a table as cards, so the
+    // footer stacks the totals above the notes there too (a purchase order's measured
+    // tables); a kind without it stacks them on a phone only.
+    readFooterStacksBelow?: (lines: readonly DocumentReadLine[]) => number
 }
 
 // The source row with the invoice's own columns back at the top level. The invoice's
@@ -839,6 +865,7 @@ const PURCHASE_FORM_NOUNS = {
     bill: 'a bill',
     expense: 'an expense',
     vendor_credit: 'a vendor credit',
+    purchase_order: 'a purchase order',
 } as const
 
 // A purchase document's start: the Purchase lines setting a new form starts from and whether
@@ -906,6 +933,83 @@ export const BILL_DOCUMENT: DocumentKind = {
     // and reads the bill's credit applications for its Payments block.
     readTotals: billReadTotals,
     readApplications: VENDOR_CREDIT_APPLICATION,
+}
+
+// The source row with the order's own columns back at the top level, as invoiceRowOf.
+function purchaseOrderRowOf(source: DocumentSource) {
+    const fields = source.kindFields
+    if (fields.kind !== 'purchase_order') {
+        throw new Error(`a purchase order source has ${fields.kind} columns`)
+    }
+    return { ...source, ...fields }
+}
+
+// A new order's Ship to, from its data source's start; a form given no start (a unit
+// test's) starts with none.
+function shipToStartFrom(start: DocumentStart | undefined): string {
+    if (!start) return ''
+    if (start.kind !== 'purchase_order') {
+        throw new Error(`a purchase order form has a ${start.kind} start`)
+    }
+    return start.shipTo ?? ''
+}
+
+// The order's badge from its stored status and what its lines received and billed:
+// Open, Partly received or Closed (purchaseOrderBadge).
+function purchaseOrderRecordBadge(record: DocumentRecord) {
+    const fields = record.kindFields
+    if (fields.kind !== 'purchase_order') return undefined
+    const status = record.status === 'closed' ? 'closed' : 'open'
+    return purchaseOrderBadge({ status }, fields.lineReceipts)
+}
+
+// A purchase order (purchase order spec §3): the party is the vendor, the lines are the
+// bill's two tables, and, as an estimate, it is edited in place while it is open, never
+// posts and the server numbers it at its first save. A copied vendor, account or product
+// that is now inactive stays in the form, and the save refuses it with the bill's texts.
+export const PURCHASE_ORDER_DOCUMENT: DocumentKind = {
+    doc: PURCHASE_ORDER_KIND,
+    data: PURCHASE_ORDER_DATA,
+    columnsFrom: purchaseOrderColumnsFrom,
+    emptyColumns: EMPTY_PURCHASE_ORDER_COLUMNS,
+    values: {
+        // `?vendor` fills Mailing address and Email as a pick does, and the first account
+        // line's Account with the vendor's default expense account when the Account picker
+        // lists it (the start read it, PURCHASE_ORDER_DATA).
+        new: ({ party, today, start }) =>
+            newPurchaseOrderValues({
+                today,
+                ...purchaseStartOf(start, 'purchase_order'),
+                shipTo: shipToStartFrom(start),
+                vendor: vendorPartyOf(party),
+            }),
+        copy: (source, lines, today) =>
+            copyPurchaseOrderValues(
+                purchaseOrderRowOf(source),
+                lines.filter(isPurchaseLine),
+                today
+            ),
+        // An order is edited in place while it is open and never posts, so it has no
+        // correction route (`?replaces`) to start one.
+        correction: () => {
+            throw new Error('a purchase order has no correction')
+        },
+    },
+    ReadDetails: PurchaseOrderReadDetails,
+    ReadStampRow: PurchaseOrderStamps,
+    ReadLines: PurchaseOrderReadLines,
+    lineSpecs: PURCHASE_LINE_SPECS,
+    // Mailing address and Email, and the first account line's empty Account.
+    partyFills: (vendor, accountIsListed, current) =>
+        vendorOrderFills(vendor, accountIsListed, { account_lines: rowsOf(current.account_lines) }),
+    readTotals: record => {
+        const fields = record.kindFields
+        if (fields.kind !== 'purchase_order') return []
+        const order = { currency: record.currency, open_amount: fields.open_amount }
+        return purchaseOrderReadTotals(order, fields.lineReceipts)
+    },
+    recordBadge: purchaseOrderRecordBadge,
+    readFooterStacksBelow: orderLinesCardsBelow,
 }
 
 // The source row with the expense's own columns back at the top level, as invoiceRowOf.

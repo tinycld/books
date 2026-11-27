@@ -65,8 +65,8 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         ],
         available: true,
     },
-    // All purchases; Pay Bills, the five kind tabs and every purchase document keep the
-    // entry active.
+    // All purchases; Pay Bills, the five kind tabs and every purchase document (a purchase
+    // order too) keep the entry active.
     {
         id: 'expenses',
         label: 'Expenses',
@@ -74,6 +74,7 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         href: 'books/purchases',
         activePaths: [
             'books/pay-bills',
+            'books/purchase-orders',
             'books/bills',
             'books/expenses',
             'books/bill-payments',
@@ -221,22 +222,22 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
 }
 
 // The entry, customer, vendor, product, transfer, invoice, sales receipt, credit memo,
-// refund receipt, estimate, bill, expense, vendor credit, vendor refund and payment forms,
-// Pay Bills, and the entry, transfer, invoice, sales receipt, credit memo, refund receipt,
-// estimate, bill, expense, vendor credit, vendor refund, payment, bill payment, write-off
-// and deposit views (and the deposit form), and a reconciliation's work screen (its Finish
+// refund receipt, estimate, purchase order, bill, expense, vendor credit, vendor refund and
+// payment forms, Pay Bills, and the entry, transfer, invoice, sales receipt, credit memo,
+// refund receipt, estimate, purchase order, bill, expense, vendor credit, vendor refund,
+// payment, bill payment, write-off and deposit views (and the deposit form), and a reconciliation's work screen (its Finish
 // bar), own the bottom of the phone screen, so the New button stays off them. The pattern
 // needs a child segment, so a bare path keeps the button: the Reconcile accounts screen
 // (`/reconcile`), a list (`/entries`, `/customers`, `/vendors`, `/products`, the Sales
 // lists `/invoices`, `/estimates`, `/sales-receipts`, `/payments`, `/credit-memos`,
-// `/refund-receipts`, and the purchase lists `/bills`, `/expenses`, `/bill-payments`,
-// `/vendor-credits`, `/vendor-refunds`), or no screen at all (transfers, write-offs and
+// `/refund-receipts`, and the purchase lists `/purchase-orders`, `/bills`, `/expenses`,
+// `/bill-payments`, `/vendor-credits`, `/vendor-refunds`), or no screen at all (transfers, write-offs and
 // deposits have no list). Pay Bills has no id: `/pay-bills` itself is the form. The
 // Reconcile history (`/reconcile/history`) is a list beside the accounts screen, not a
 // reconciliation, so it keeps the button too. A report (`/reports/<id>`) is core's report
 // view, which leaves no room under its table for the button.
 const FAB_FREE_SCREEN =
-    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments|write-offs|deposits|reports)\/[^/]+|reconcile\/(?!history\/?$)[^/]+|pay-bills)\/?$/
+    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|purchase-orders|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments|write-offs|deposits|reports)\/[^/]+|reconcile\/(?!history\/?$)[^/]+|pay-bills)\/?$/
 
 export function hidesNewFab(pathname: string): boolean {
     return FAB_FREE_SCREEN.test(pathname)

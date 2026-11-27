@@ -1,7 +1,8 @@
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Text, View } from 'react-native'
 import { EntryBackLink } from '../entries/EntryHeader'
-import { useDocumentKind } from './document-kind-context'
+import { DocumentKindContext, useDocumentKind } from './document-kind-context'
+import type { DocumentKind } from './document-kinds'
 
 const TAP = { minHeight: 44 }
 
@@ -44,5 +45,27 @@ export function DocumentLoadError({ message, onRetry }: { message: string; onRet
             testID={`${doc.testId}-error`}
             retryTestID={`${doc.testId}-retry`}
         />
+    )
+}
+
+/**
+ * A document route whose number-key read failed (useDocumentRouteId): the kind's load error
+ * with Retry, in the place DocumentScreen would take, before the screen has a record id.
+ * The root opts into pointer events and draws its background, as DocumentScreen's does.
+ */
+export function DocumentRouteLoadError({
+    document: documentKind,
+    onRetry,
+}: {
+    document: DocumentKind
+    onRetry(): void
+}) {
+    const message = documentKind.doc.messages.loadFailed
+    return (
+        <DocumentKindContext.Provider value={documentKind}>
+            <View pointerEvents="auto" className="flex-1 bg-background">
+                <DocumentLoadError message={message} onRetry={onRetry} />
+            </View>
+        </DocumentKindContext.Provider>
     )
 }

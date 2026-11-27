@@ -13,7 +13,7 @@ import { BILL_IDS, BILL_LINES, BILLS } from '../tinycld/books/lib/bill-form-fixt
 import { bigFigureText, SALES_RECEIPT_MESSAGES } from '../tinycld/books/lib/document-messages'
 import { documentScreenState } from '../tinycld/books/lib/document-screen-state'
 import { shownDocumentTotals } from '../tinycld/books/lib/document-tax'
-import { CREDIT_MEMO_MESSAGES } from '../tinycld/books/lib/document-texts'
+import { CREDIT_MEMO_MESSAGES, PURCHASE_ORDER_MESSAGES } from '../tinycld/books/lib/document-texts'
 import { lineTableSubtotals } from '../tinycld/books/lib/document-values'
 import { EXPENSE_IDS, EXPENSE_LINES, EXPENSES } from '../tinycld/books/lib/expense-form-fixture'
 import { maxStoredAmount } from '../tinycld/books/lib/money-text'
@@ -347,6 +347,63 @@ describe('documentScreenState for a quote', () => {
 
     it('an id with no row is not-found', () => {
         expect(documentScreenState({ ...PENDING, status: null })).toBe('not-found')
+    })
+})
+
+// The order lifecycle (purchase order spec §3.1, §3.12): a saved order, open or closed,
+// opens in the read view for everyone; `?edit=1` (isEdit) opens the form for a writer on
+// an open order; `?edit=1` on a closed order is the read view with the notice "A closed
+// purchase order cannot be edited." (`closed-edit`); a reader with `?edit=1` gets the read
+// view; a reader at new gets no access.
+describe('documentScreenState for a purchase order', () => {
+    const OPEN_ORDER: Input = { ...DRAFT, lifecycle: 'order', status: 'open', isEdit: false }
+    const NEW_ORDER: Input = { ...OPEN_ORDER, isNew: true, status: null }
+
+    it('a saved open order is the read view for a writer and a reader', () => {
+        expect(documentScreenState(OPEN_ORDER)).toBe('read')
+        expect(documentScreenState({ ...OPEN_ORDER, canWrite: false })).toBe('read')
+    })
+
+    it('a closed order is the read view without ?edit=1', () => {
+        expect(documentScreenState({ ...OPEN_ORDER, status: 'closed' })).toBe('read')
+    })
+
+    it('?edit=1 on an open order is the form for a writer', () => {
+        expect(documentScreenState({ ...OPEN_ORDER, isEdit: true })).toBe('form')
+    })
+
+    it('?edit=1 on a closed order is the read view with the closed-edit notice', () => {
+        expect(documentScreenState({ ...OPEN_ORDER, status: 'closed', isEdit: true })).toBe(
+            'closed-edit'
+        )
+        // The notice draws `messages.cannotEdit` (DocumentScreen), so that is the text pinned.
+        expect(PURCHASE_ORDER_MESSAGES.cannotEdit).toBe('A closed purchase order cannot be edited.')
+    })
+
+    it('?edit=1 is the read view for a reader', () => {
+        expect(documentScreenState({ ...OPEN_ORDER, isEdit: true, canWrite: false })).toBe('read')
+    })
+
+    it('a reader at new gets no-access, a writer the form', () => {
+        expect(documentScreenState({ ...NEW_ORDER, canWrite: false })).toBe('no-access')
+        expect(documentScreenState(NEW_ORDER)).toBe('form')
+    })
+
+    // The first save's optimistic row would swap the new form for the read view before the
+    // server answers.
+    it('a new order held through its save stays the form', () => {
+        expect(documentScreenState({ ...NEW_ORDER, isHeld: true })).toBe('form')
+    })
+
+    it('an id with no row is not-found, also with ?edit=1', () => {
+        expect(documentScreenState({ ...OPEN_ORDER, status: null })).toBe('not-found')
+        expect(documentScreenState({ ...OPEN_ORDER, status: null, isEdit: true })).toBe('not-found')
+    })
+
+    it('is loading until the reads are ready, and error when a read failed', () => {
+        expect(documentScreenState({ ...OPEN_ORDER, isReady: false })).toBe('loading')
+        expect(documentScreenState({ ...OPEN_ORDER, isError: true, isReady: false })).toBe('error')
+        expect(documentScreenState({ ...NEW_ORDER, isError: true })).toBe('error')
     })
 })
 

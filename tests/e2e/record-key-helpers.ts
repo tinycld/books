@@ -35,6 +35,7 @@ const DOCUMENT_COLLECTIONS: Record<string, string> = {
     'vendor-refunds': 'books_vendor_refunds',
     deposits: 'books_deposits',
     'write-offs': 'books_write_offs',
+    'purchase-orders': 'books_purchase_orders',
 }
 
 // The collection behind each route that opens a record by its code (lib/record-code.ts).

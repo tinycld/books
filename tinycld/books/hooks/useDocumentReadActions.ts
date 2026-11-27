@@ -15,6 +15,7 @@ import {
     DOCUMENT_READ_ACTION_KEYS,
     DOCUMENT_READ_LABELS,
     type DocumentReadAction,
+    documentReadActionDisabled,
     documentReadActions,
     payBillOffered,
     receivePaymentOffered,
@@ -23,23 +24,28 @@ import {
     refundReceiptOffered,
     writeOffOffered,
 } from '../lib/document-actions'
-import { quoteReadActions } from '../lib/document-lifecycle'
-import { documentNewHref } from '../lib/document-routes'
-import { sendOffered } from '../lib/document-send'
+import { orderReadActions, quoteReadActions } from '../lib/document-lifecycle'
+import { documentEditPath, documentNewHref } from '../lib/document-routes'
+import { isSendKind, sendOffered } from '../lib/document-send'
+import { purchaseTabOf } from '../lib/purchase-lists'
+import { orderHasOpenLine } from '../lib/purchase-order-status'
+import { documentKey } from '../lib/record-key'
 import { payoutVoidBodyOf } from '../lib/refund-payout'
 import { writeRefusalText } from '../lib/refusal'
 import {
     CREDIT_MEMO_KIND,
+    type DocumentLifecycle,
     INVOICE_KIND,
     REFUND_RECEIPT_KIND,
     type SalesDocumentKind,
 } from '../lib/sales-document-kinds'
-import { isSendDocType } from '../lib/send-doc-types'
 import { useApplyCreditStore } from '../stores/apply-credit-store'
 import { useDocumentSendStore } from '../stores/document-send-store'
 import { useWriteOffStore } from '../stores/write-off-store'
 import type { DocumentRecord } from './document-data'
+import { useBooksAccess } from './useBooksAccess'
 import { useCopyDocumentLink } from './useCopyDocumentLink'
+import { deleteDialogTexts, useDocumentDelete, useScreenHoldRelease } from './useDocumentDelete'
 import { useOpenDocument } from './useOpenDocument'
 import { useOpenFromReadView, useOpenInPlaceOfReadView } from './useOpenFromReadView'
 import { usePdfDownload } from './usePdfDownload'
@@ -48,7 +54,15 @@ import { useVoidDocument } from './useVoidDocument'
 
 type ReadRecord = Pick<
     DocumentRecord,
-    'id' | 'status' | 'number' | 'entry' | 'customer' | 'email' | 'kindFields'
+    | 'id'
+    | 'status'
+    | 'number'
+    | 'entry'
+    | 'customer'
+    | 'email'
+    | 'kindFields'
+    | 'sequence'
+    | 'replaced_by'
 >
 
 // The customer link's token of an invoice; '' for any other record, which offers no Copy
@@ -114,15 +128,36 @@ function readActionId(action: DocumentReadAction): string {
     return READ_ACTION_IDS[action] ?? `read-${action.replaceAll('_', '-')}`
 }
 
-// The offered actions in the read view's order, by the kind's lifecycle; View journal
-// entry needs the entry the post wrote; Download PDF needs a kind with a PDF.
+// An order's actions (orderReadActions): by its status, how it closed, the user's access
+// and whether a line is still open; no action for any other record.
+function orderActionsOf(
+    record: ReadRecord,
+    canWrite: boolean,
+    isAdmin: boolean
+): DocumentReadAction[] {
+    const fields = record.kindFields
+    if (fields.kind !== 'purchase_order') return []
+    const status = record.status === 'closed' ? 'closed' : 'open'
+    return orderReadActions({
+        status,
+        closedReason: fields.closed_reason,
+        canWrite,
+        isAdmin,
+        hasOpenLine: orderHasOpenLine(fields.lineReceipts),
+    })
+}
+
+// The offered actions in the read view's order, by the kind's lifecycle (an exhaustive
+// switch); View journal entry needs the entry the post wrote; Download PDF needs a kind
+// with a PDF.
 function offeredActionsOf(
     doc: Pick<SalesDocumentKind, 'lifecycle' | 'features'>,
     record: ReadRecord,
-    canWrite: boolean,
+    access: { canWrite: boolean; isAdmin: boolean },
     hasUnappliedCredit: boolean,
     isDeposited: boolean
 ): DocumentReadAction[] {
+    const { canWrite } = access
     const { kind } = record.kindFields
     const balance = balanceOf(record)
     const extra = {
@@ -146,13 +181,34 @@ function offeredActionsOf(
         canCopyLink:
             kind === 'invoice' && record.status === 'posted' && invoiceTokenOf(record) !== '',
     }
-    const actions =
-        doc.lifecycle === 'quote'
-            ? quoteReadActions(record.status, canWrite, invoiceIdOf(record) !== '')
-            : documentReadActions(record.status, canWrite, doc.features, extra).filter(
-                  action => action !== 'entry' || record.entry !== ''
-              )
+    const actions = lifecycleActionsOf(doc.lifecycle, {
+        quote: () => quoteReadActions(record.status, canWrite, invoiceIdOf(record) !== ''),
+        order: () => orderActionsOf(record, canWrite, access.isAdmin),
+        posting: () =>
+            documentReadActions(record.status, canWrite, doc.features, extra).filter(
+                action => action !== 'entry' || record.entry !== ''
+            ),
+    })
     return doc.features.pdf ? actions : actions.filter(action => action !== 'pdf')
+}
+
+// Whether the read view's Edit opens the record's own form (`?edit=1`, purchase order spec
+// §3.2) and Delete holds the record while it runs: an order's. A posting document's Edit
+// opens its correction; a quote's read view has no Edit. Keyed by DocumentLifecycle, so a
+// new lifecycle fails tsc until it has its answer.
+const EDITS_OWN_RECORD: Record<DocumentLifecycle, boolean> = {
+    posting: false,
+    quote: false,
+    order: true,
+}
+
+// The actions of the kind's lifecycle; keyed by DocumentLifecycle, so a new lifecycle fails
+// tsc until it has its actions.
+function lifecycleActionsOf(
+    lifecycle: DocumentLifecycle,
+    byLifecycle: Record<DocumentLifecycle, () => DocumentReadAction[]>
+): DocumentReadAction[] {
+    return byLifecycle[lifecycle]()
 }
 
 /**
@@ -212,7 +268,8 @@ export function useDocumentReadActions(
         onError: () => {},
     })
     const isVoiding = voidDocument.isPending
-    const voidState = useServerActionState({ isDisabled: isVoiding })
+    // Writes alone (no own flag): documentReadActionDisabled adds the void's.
+    const writeState = useServerActionState()
     const download = usePdfDownload()
     const openInvoice = useOpenDocument(INVOICE_KIND, invoiceIdOf(record))
     const openApplyDialog = useApplyCreditStore(state => state.open)
@@ -220,10 +277,31 @@ export function useDocumentReadActions(
     const openSend = useDocumentSendStore(state => state.open)
     const copyLink = useCopyDocumentLink('invoice', invoiceTokenOf(record))
     const sendKind = record.kindFields.kind
+    // Close and Reopen are a Books admin's (spec §3.6); the access row is the one every Books
+    // screen reads, so this serves it from the store.
+    const { isAdmin } = useBooksAccess()
+    // Delete (an order's More row): the confirm dialog, the hold of the record while the
+    // delete runs, and All purchases after it (the record is gone; spec §3.6). A push, so the
+    // browser's back reaches the deleted order's route, which says it does not exist.
+    const listHref = orgHref(purchaseTabOf('all').path)
+    const deletion = useDocumentDelete(doc, record.id, () => router.push(listHref))
+    const editsOwnRecord = EDITS_OWN_RECORD[doc.lifecycle]
+    useScreenHoldRelease(editsOwnRecord ? record.id : undefined)
+    // An order's form is its own route with `?edit=1` (spec §3.2), in the read view's place.
+    const editOrder = () => router.replace(orgHref(documentEditPath(doc, documentKey(record))))
     // The same query key as the invoice's read frame, so one request serves both.
     const unappliedCredits = useUnappliedCreditMemos(creditCustomerOf(record, canWrite))
     const hasUnappliedCredit = unappliedCredits.credits.length > 0
-    const run: Record<DocumentReadAction, () => void> = {
+    // The Send dialog over this read view (email-share spec §3.2), which the read view mounts
+    // with the same `owner`. Only a kind the server sends (isSendKind) has the handler, so
+    // Send… is not drawn and its key is not registered for any other kind.
+    const sendRun: Partial<Record<DocumentReadAction, () => void>> = isSendKind(sendKind)
+        ? { send: () => openSend({ kind: sendKind, id: record.id }, owner) }
+        : {}
+    // The actions this read view has a handler for; an offered action without one is not
+    // drawn (a purchase order's Copy to bill, Close and Reopen come with their dialogs).
+    const run: Partial<Record<DocumentReadAction, () => void>> = {
+        ...sendRun,
         // The apply dialog, drawn by the credit's or the invoice's read frame (vendor credit
         // spec §3.9, apply credit spec §3.2, §3.3), opened with this record's id.
         apply_credit: () => openApplyDialog(record.id),
@@ -241,14 +319,13 @@ export function useDocumentReadActions(
             router.push(
                 orgHref(`books/payments/new?customer=${record.customer}&invoice=${record.id}`)
             ),
-        // The Send dialog over this read view (email-share spec §3.2), which the read view
-        // mounts with the same `owner`. Offered only for a sent-able kind (sendOffered).
-        send: () => {
-            if (isSendDocType(sendKind)) openSend({ kind: sendKind, id: record.id }, owner)
-        },
         // The invoice's customer link on the clipboard, with a toast (email-share spec §3.5).
         link: copyLink.copy,
-        edit: () => openFromReadView(documentNewHref(doc, { replaces: record.id })),
+        // A posted document's Edit opens its correction; an order's opens its own form.
+        edit: editsOwnRecord
+            ? editOrder
+            : () => openFromReadView(documentNewHref(doc, { replaces: record.id })),
+        delete: deletion.open,
         void: () => {
             voidDocument.reset()
             setVoidOpen(true)
@@ -278,32 +355,50 @@ export function useDocumentReadActions(
                 fallbackName: doc.pdfStem(record.number),
             }),
     }
-    // Void writes, so it waits for the server; Download PDF waits for its download; Copy
-    // customer link waits for writes to be available (useCopyDocumentLink); the others only
-    // open a screen or a dialog.
-    const disabledOf = (action: DocumentReadAction) => {
-        if (action === 'void') return voidState.isDisabled
-        if (action === 'pdf') return download.isPending
-        if (action === 'link') return isVoiding || !copyLink.isOffered
-        return isVoiding
+    // documentReadActionDisabled: an action that writes waits for writes to be available,
+    // Void also for its own void; Download PDF waits for its download; Copy customer link
+    // waits for writes to be available (useCopyDocumentLink); the others only open a screen
+    // or a dialog.
+    const disabledState = {
+        writesAvailable: !writeState.isDisabled,
+        isVoiding,
+        isDownloading: download.isPending,
+        isLinkOffered: copyLink.isOffered,
     }
+    const disabledOf = (action: DocumentReadAction) =>
+        documentReadActionDisabled(action, disabledState)
     // Apply's words follow the record's kind: "Apply to bills", "Apply to invoices", "Apply
     // credit".
-    const labelOf = (action: DocumentReadAction) =>
-        action === 'apply_credit'
-            ? applyCreditLabel(record.kindFields.kind)
-            : DOCUMENT_READ_LABELS[action]
+    // Delete names the kind: "Delete purchase order".
+    const labelOf = (action: DocumentReadAction) => {
+        if (action === 'apply_credit') return applyCreditLabel(record.kindFields.kind)
+        if (action === 'delete') return `${DOCUMENT_READ_LABELS.delete} ${doc.noun.toLowerCase()}`
+        return DOCUMENT_READ_LABELS[action]
+    }
     const isDeposited = depositedOffer({ hasEntry: record.entry !== '', ...depositRead })
-    const offered = offeredActionsOf(doc, record, canWrite, hasUnappliedCredit, isDeposited)
-    const actions: DocumentReadItem[] = offered.map(action => ({
-        action,
-        id: readActionId(action),
-        label: labelOf(action),
-        keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
-        isDisabled: disabledOf(action),
-        isDestructive: action === 'void',
-        onSelect: run[action],
-    }))
+    const offered = offeredActionsOf(
+        doc,
+        record,
+        { canWrite, isAdmin },
+        hasUnappliedCredit,
+        isDeposited
+    )
+    const actions: DocumentReadItem[] = offered.flatMap(action => {
+        const onSelect = run[action]
+        if (!onSelect) return []
+        const key = DOCUMENT_READ_ACTION_KEYS[action]
+        return [
+            {
+                action,
+                id: readActionId(action),
+                label: labelOf(action),
+                keys: key ? formatHint(key).text : '',
+                isDisabled: disabledOf(action),
+                isDestructive: action === 'void' || action === 'delete',
+                onSelect,
+            },
+        ]
+    })
     // The dialog closes when Void stops being offered (the document was voided or
     // replaced elsewhere while it was open), unless this dialog's own void runs.
     const isVoidOffered = actions.some(item => item.id === 'read-void')
@@ -318,5 +413,15 @@ export function useDocumentReadActions(
         onConfirm: () => voidDocument.mutate(record.id),
         onCancel: () => setVoidOpen(false),
     }
-    return { actions, voidDialog }
+    // The delete confirm (DeleteDraftDialog) with the kind's words; the server's refusal
+    // ("Purchase order 1004 has bills. Close it instead.") shows in it.
+    const deleteDialog = {
+        isVisible: deletion.isOpen,
+        onConfirm: deletion.confirm,
+        onCancel: deletion.cancel,
+        isPending: deletion.isPending,
+        errorMessage: deletion.errorMessage,
+        ...deleteDialogTexts(doc, record.number),
+    }
+    return { actions, voidDialog, deleteDialog }
 }

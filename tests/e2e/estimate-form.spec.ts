@@ -21,6 +21,7 @@ import {
 import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
 import { batchOperations } from './journal-entries-helpers'
 import { tabTo } from './keyboard-helpers'
+import { shown } from './pay-bills-helpers'
 import { isDisabled } from './record-form-helpers'
 import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 
@@ -513,13 +514,16 @@ test.describe('estimate-form: form and save', () => {
         // Search opens the estimate by id; the route swaps in its number only once it has
         // read the estimate, which this page cannot.
         await expect(second).toHaveURL(new RegExp(`/books/estimates/${id}$`))
-        await expect(second.getByTestId('estimate-error')).toContainText(LOAD_FAILED)
-        await expect(second.getByTestId('estimate-retry')).toBeVisible()
+        // The rail's Books link first lands this page on the estimate's number route, which
+        // shows its own load error; the searched screen is pushed over it and the landing
+        // one stays mounted and hidden: read the shown screen.
+        await expect(shown(second, 'estimate-error')).toContainText(LOAD_FAILED)
+        await expect(shown(second, 'estimate-retry')).toBeVisible()
         await expect(second.getByTestId('estimate-form')).toHaveCount(0)
         await second.unrouteAll({ behavior: 'wait' })
-        await second.getByTestId('estimate-retry').click()
-        await expect(second.getByTestId('estimate-form')).toBeVisible()
-        await expect(second.getByTestId('form-input-memo')).toHaveValue(memo)
+        await shown(second, 'estimate-retry').click()
+        await expect(shown(second, 'estimate-form')).toBeVisible()
+        await expect(shown(second, 'form-input-memo')).toHaveValue(memo)
 
         // Its lines' read fails: the same Retry loads them.
         const third = await context.newPage()
@@ -529,16 +533,20 @@ test.describe('estimate-form: form and save', () => {
         await openBooks(third)
         await searchToEstimate(third, memo)
         await expectRecordUrl(third, 'estimates', id)
-        await expect(third.getByTestId('estimate-error')).toBeVisible()
+        // The rail can land this page on the estimate's route first, with its own load
+        // error, under the searched screen: read the shown screen.
+        await expect(shown(third, 'estimate-error')).toBeVisible()
         await expect(third.getByTestId('estimate-form')).toHaveCount(0)
         await third.unrouteAll({ behavior: 'wait' })
-        await third.getByTestId('estimate-retry').click()
-        await expect(third.getByTestId('estimate-form')).toBeVisible()
-        await expect(estimateLineRows(third)).toHaveCount(1)
-        const rowId = await estimateLineRowId(third, 0)
-        await expect(third.getByTestId(lineCellTestId(rowId, 'product'))).toContainText(
-            ACCESS_POINT
+        await shown(third, 'estimate-retry').click()
+        await expect(shown(third, 'estimate-form')).toBeVisible()
+        const shownRows = shown(third, 'estimate-lines').locator(
+            '[data-testid^="form-table-lines-row-"]'
         )
+        await expect(shownRows).toHaveCount(1)
+        const rowTestId = await shownRows.first().getAttribute('data-testid')
+        const rowId = (rowTestId ?? '').slice('form-table-lines-row-'.length)
+        await expect(shown(third, lineCellTestId(rowId, 'product'))).toContainText(ACCESS_POINT)
     })
 
     test('the phone bar keeps one row and More saves and starts a new estimate', async ({

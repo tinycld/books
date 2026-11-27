@@ -126,6 +126,7 @@ describe('registries', () => {
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
         expect(columns[1]?.actions.map(a => a.id)).toEqual([
             'vendor',
+            'purchase_order',
             'bill',
             'pay_bills',
             'expense',
@@ -192,10 +193,23 @@ describe('registries', () => {
         })
     })
 
-    it('the New menu Vendors column lists Vendor, Bill, Pay bills, Expense, Vendor credit, then Vendor refund', () => {
+    // Purchase order spec §2: "Purchase order" after "Vendor" and before "Bill". It takes
+    // no vendor until it joins the purchase lists (checkpoint 5).
+    it('NEW_ACTIONS has an available Purchase order action in the vendors column at books/purchase-orders/new', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'purchase_order')).toEqual({
+            id: 'purchase_order',
+            label: 'Purchase order',
+            href: 'books/purchase-orders/new',
+            column: 'vendors',
+            available: true,
+        })
+    })
+
+    it('the New menu Vendors column lists Vendor, Purchase order, Bill, Pay bills, Expense, Vendor credit, then Vendor refund', () => {
         const vendors = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Vendors')
         expect(vendors?.actions.map(a => a.label)).toEqual([
             'Vendor',
+            'Purchase order',
             'Bill',
             'Pay bills',
             'Expense',
@@ -546,6 +560,10 @@ describe('expenses sidebar entry', () => {
         '/a/org/books/bill-payments/x',
         '/a/org/books/vendor-credits/new',
         '/a/org/books/vendor-refunds/x',
+        // Purchase order spec §2: the Expenses entry stays active on the order's routes.
+        '/a/org/books/purchase-orders',
+        '/a/org/books/purchase-orders/new',
+        '/a/org/books/purchase-orders/x',
     ]
 
     function entryOf(id: string): SidebarEntry {
@@ -588,6 +606,16 @@ describe('expenses sidebar entry', () => {
     })
 
     it.each(['/a/books/pay-bills', '/a/books/bills/x'])('hides the New button on %s', pathname => {
+        expect(hidesNewFab(pathname)).toBe(true)
+    })
+
+    // Purchase order spec §2: `hidesNewFab` gains `purchase-orders` (the form and the read
+    // view draw their own bars).
+    it.each([
+        '/a/books/purchase-orders/new',
+        '/a/acme/books/purchase-orders/new',
+        '/a/books/purchase-orders/x',
+    ])('hides the New button on the purchase order screen %s', pathname => {
         expect(hidesNewFab(pathname)).toBe(true)
     })
 })

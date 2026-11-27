@@ -53,7 +53,7 @@ const NO_LINES = 'Add at least one account or product line'
 const VOID_BODY = 'A reversing entry is posted in the original period. The number is kept.'
 const ITEM_HEADING = 'Product and service details'
 const PURCHASE_LINES_NOTE =
-    'Which line tables new bills, expenses and vendor credits show. A form still shows a table its record already has lines in.'
+    'Which line tables new bills, expenses, vendor credits and purchase orders show. A form still shows a table its record already has lines in.'
 // The seeded credits (seed.ts seedVendorCredits), found by their memos.
 const UNAPPLIED_MEMO = 'Meter 4471 was read twice in October'
 const PARTLY_MEMO = 'Return authorised by Dana, RMA 5521'
@@ -491,11 +491,14 @@ test.describe('vendor-credit-form: refusals and read actions', () => {
         // Search opens the credit by id; the route swaps in its number only once it has
         // read the credit, which this page cannot.
         await expect(second).toHaveURL(new RegExp(`/books/vendor-credits/${firstId}$`))
-        await expect(second.getByTestId('vendor-credit-error')).toBeVisible()
+        // The rail's Books link first lands this page on the credit's number route, which
+        // shows its own load error; the searched screen is pushed over it and the landing
+        // one stays mounted and hidden: read the shown screen.
+        await expect(shown(second, 'vendor-credit-error')).toBeVisible()
         await expect(second.getByTestId('vendor-credit-read-only')).toHaveCount(0)
         await second.unrouteAll({ behavior: 'wait' })
         await second.route('**/api/realtime*', route => route.abort())
-        await second.getByTestId('vendor-credit-retry').click()
+        await shown(second, 'vendor-credit-retry').click()
         await expect(shown(second, 'vendor-credit-read-only')).toBeVisible()
         await second.close()
     })

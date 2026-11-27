@@ -1,4 +1,5 @@
 import { useLocalSearchParams } from 'expo-router'
+import { DocumentRouteLoadError } from '../../components/documents/DocumentLoadError'
 import { DocumentScreen } from '../../components/documents/DocumentScreen'
 import { INVOICE_DOCUMENT } from '../../components/documents/document-kinds'
 import { useDocumentRouteId } from '../../hooks/useRouteRecordId'
@@ -6,7 +7,10 @@ import { useDocumentRouteId } from '../../hooks/useRouteRecordId'
 // `tab=pdf` opens the PDF view tab.
 export default function InvoiceRoute() {
     const { id: key, tab } = useLocalSearchParams<{ id: string; tab?: string }>()
-    const id = useDocumentRouteId('books_invoices', key)
-    if (id === undefined) return null
-    return <DocumentScreen key={id} document={INVOICE_DOCUMENT} id={id} tab={tab} />
+    const route = useDocumentRouteId('books_invoices', key)
+    if (route.isError) {
+        return <DocumentRouteLoadError document={INVOICE_DOCUMENT} onRetry={route.retry} />
+    }
+    if (route.id === undefined) return null
+    return <DocumentScreen key={route.id} document={INVOICE_DOCUMENT} id={route.id} tab={tab} />
 }

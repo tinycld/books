@@ -1840,7 +1840,9 @@ const hosts: FormHostDefInput[] = [
                 kind: 'custom',
                 storage: 'column',
                 required: false,
-                component: 'BandEmailField',
+                // Always an input and a Tab stop (spec §3.3): the vendor pick fills it and
+                // moves the focus to it.
+                component: 'EmailField',
                 chrome: 'cell',
             },
             {
