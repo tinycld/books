@@ -2,6 +2,7 @@ import type {
     BooksCreditMemos,
     BooksEstimates,
     BooksInvoices,
+    BooksPurchaseOrders,
     BooksRefundReceipts,
     BooksSalesReceipts,
     BooksSettings,
@@ -97,7 +98,16 @@ function detailLines(input: DocumentEmailInput): string[] {
             ]
         case 'refund_receipt':
             return [`Date: ${e(input.date)}`, `Refund: ${e(input.total)}`]
+        // Go documentEmail writes no block of dates and amounts for a purchase order: the
+        // vendor reads them on the attached PDF.
+        case 'purchase_order':
+            return []
     }
+}
+
+function detailBlocks(input: DocumentEmailInput): string[] {
+    const lines = detailLines(input)
+    return lines.length === 0 ? [] : [paragraph(lines)]
 }
 
 // The kinds with a customer page (Go documentLinkPaths): their email always has the
@@ -148,7 +158,7 @@ export function documentEmail(input: DocumentEmailInput): { subject: string; bod
         paragraph([
             `Attached is ${words.noun} ${escapeHtml(input.number)} from ${nameSentence(business)}`,
         ]),
-        paragraph(detailLines(input)),
+        ...detailBlocks(input),
         ...messageBlocks(input.message),
         ...linkBlocks(input),
         paragraph([closingSentence(input)]),
@@ -174,9 +184,11 @@ export type DocumentEmailRecord =
     | { kind: 'sales_receipt'; record: Pick<BooksSalesReceipts, CommonFields> }
     | { kind: 'credit_memo'; record: Pick<BooksCreditMemos, CommonFields | 'balance'> }
     | { kind: 'refund_receipt'; record: Pick<BooksRefundReceipts, CommonFields> }
+    | { kind: 'purchase_order'; record: Pick<BooksPurchaseOrders, CommonFields> }
 
 export type DocumentEmailSource = DocumentEmailRecord & {
-    // The customer's display name.
+    // The display name of the party the email greets: a purchase order's vendor, else the
+    // document's customer (as Go documentPartyName).
     customerName: string
     // `currency` is the book's, for a document with none (as Go documentEmailInputOf).
     settings: Pick<BooksSettings, 'business_name' | 'phone' | 'currency'>
@@ -248,6 +260,7 @@ function kindFieldsOf(source: DocumentEmailSource): KindFields {
         }
         case 'sales_receipt':
         case 'refund_receipt':
+        case 'purchase_order':
             return NO_KIND_FIELDS
     }
 }

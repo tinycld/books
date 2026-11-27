@@ -10,6 +10,7 @@ import {
     creditMemoBadge,
     isFormStatus,
     isReadOnlyStatus,
+    orderCloseBody,
     orderReadActions,
     paidBadge,
     quoteReadActions,
@@ -444,6 +445,22 @@ describe('orderReadActions', () => {
     it.each([OPEN, MANUAL, RECEIVED])('gives a reader Download PDF only (%o)', state => {
         expect(orderReadActions({ ...state, ...READER, hasOpenLine: true })).toEqual(['pdf'])
         expect(orderReadActions({ ...state, ...READER, hasOpenLine: false })).toEqual(['pdf'])
+    })
+})
+
+// The Close dialog's body (purchase order spec §3.6, Q6): how many lines are still open and
+// what they come to, in the shared money text.
+describe('orderCloseBody', () => {
+    it('counts the open lines and their amount', () => {
+        expect(orderCloseBody(2, 31_800, 'USD')).toBe(
+            '2 lines are still open ($318.00). Nothing more can be copied to a bill.'
+        )
+    })
+
+    it('says "1 line is still open" for one line', () => {
+        expect(orderCloseBody(1, 4_500, 'USD')).toBe(
+            '1 line is still open ($45.00). Nothing more can be copied to a bill.'
+        )
     })
 })
 

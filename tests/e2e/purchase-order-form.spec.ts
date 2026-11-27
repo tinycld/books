@@ -161,23 +161,28 @@ test.describe('purchase-orders: form and read view', () => {
         await expect(readView(page)).toBeVisible()
         await expect(readView(page)).not.toContainText(`${memo} unsaved`)
 
-        // An open order offers no Send… until the kind can be sent (checkpoint 5): an action
-        // without a handler is not drawn. Edit shows first, so the bar has drawn.
+        // An open order offers Send… to a writer (spec §3.6 "Writer, open order: Copy to bill
+        // (primary), Edit, Send…, Copy, Download PDF").
         await expect(visibleOrderPart(page, 'purchase-order-read-edit')).toBeVisible()
-        await expect(visibleOrderPart(page, 'purchase-order-read-send')).toHaveCount(0)
+        await expect(visibleOrderPart(page, 'purchase-order-read-send')).toBeVisible()
 
         // The route's number key is read again after a reload, and that read fails: the
-        // load error and Retry show; Retry after the route is gone shows the order.
+        // load error and Retry show; Retry after the route is gone shows the order. The
+        // Purchase orders list stays mounted under the order (DocumentKindLayout renders the
+        // kind's list once, under its child stack), and the list's own read files the
+        // order's row, which useDocumentRouteId takes before it looks at the failed
+        // number-key read. So every read of the orders fails on this reload, the list's
+        // too: no read files the row. The list stays covered by the order at this width,
+        // and the order's Retry cleans the orders' source (recoverLiveQueries), so the
+        // screens the later steps open load their own reads.
         await expect(page).toHaveURL(new RegExp(`/books/purchase-orders/${number}$`))
-        await page.route('**/api/collections/books_purchase_orders/records*', route => {
-            const filter = new URL(route.request().url()).searchParams.get('filter') ?? ''
-            if (!filter.includes('sequence')) return route.fallback()
-            return route.fulfill({
+        await page.route('**/api/collections/books_purchase_orders/records*', route =>
+            route.fulfill({
                 status: 400,
                 contentType: 'application/json',
                 body: JSON.stringify({ status: 400, message: 'Read failed.', data: {} }),
             })
-        })
+        )
         await page.reload()
         await expect(visibleOrderPart(page, 'purchase-order-error')).toContainText(LOAD_FAILED)
         await expect(readView(page)).toHaveCount(0)

@@ -25,11 +25,13 @@ import {
     writeOffRow,
 } from '../lib/party-transactions'
 import { categoryOf, NO_CATEGORY, type PurchaseCategory } from '../lib/purchase-category'
+import { isOrderLineOpen } from '../lib/purchase-order-status'
 import { fiscalStartMonth, todayIso } from '../lib/register-range'
 import {
     billPaymentRow,
     billRow,
     expenseRow,
+    purchaseOrderRow,
     vendorCreditRow,
     vendorRefundRow,
 } from '../lib/vendor-transactions'
@@ -214,6 +216,22 @@ function purchaseLists(
         ...(data.bills ?? []).map(row => billDocument(row, NO_CATEGORY)),
         ...(data.billsWithLines ?? []).map(row => billDocument(row, categoryOf(row.lines))),
     ]
+    // A purchase order's Open column and sort read its stored `open_amount` (`balance`);
+    // its badge reads its lines (purchaseOrderRow), and `hasBills` its first bill. Its
+    // total is shown unsigned on every tab, and it has no entry.
+    const purchaseOrderRows: DocumentListRow[] = (data.purchaseOrders ?? []).map(row => {
+        const lines = row.lineReceipts ?? []
+        return {
+            ...purchaseOrderRow(row, lines),
+            ...purchaseFields({ ...row, entry: '' }),
+            memo: row.memo,
+            balance: row.open_amount,
+            email: row.email,
+            hasBills: row.firstBill !== undefined,
+            openLines: lines.filter(isOrderLineOpen).length,
+            revision: row.revision,
+        }
+    })
     const expenseRows: DocumentListRow[] = [
         ...(data.expenses ?? []).map(row => expenseDocument(row, NO_CATEGORY)),
         ...(data.expensesWithLines ?? []).map(row => expenseDocument(row, categoryOf(row.lines))),
@@ -236,7 +254,14 @@ function purchaseLists(
         memo: row.memo,
         reference: row.reference_no,
     }))
-    return [billRows, expenseRows, billPaymentRows, vendorCreditRows, vendorRefundRows]
+    return [
+        billRows,
+        purchaseOrderRows,
+        expenseRows,
+        billPaymentRows,
+        vendorCreditRows,
+        vendorRefundRows,
+    ]
 }
 
 /**
@@ -300,6 +325,7 @@ export function useDocumentList({ tab, filters, sort, keepKey: keepKeyOption }: 
     const {
         bills,
         billsWithLines,
+        purchaseOrders,
         expenses,
         expensesWithLines,
         billPayments,
@@ -313,6 +339,7 @@ export function useDocumentList({ tab, filters, sort, keepKey: keepKeyOption }: 
                 {
                     bills,
                     billsWithLines,
+                    purchaseOrders,
                     expenses,
                     expensesWithLines,
                     billPayments,
@@ -326,6 +353,7 @@ export function useDocumentList({ tab, filters, sort, keepKey: keepKeyOption }: 
         [
             bills,
             billsWithLines,
+            purchaseOrders,
             expenses,
             expensesWithLines,
             billPayments,

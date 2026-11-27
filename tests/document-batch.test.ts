@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { batchDialogCopy, batchResultText, batchTargets } from '../tinycld/books/lib/document-batch'
+import {
+    batchActionsOf,
+    batchDialogCopy,
+    batchResultText,
+    batchTargets,
+} from '../tinycld/books/lib/document-batch'
 import type { DocumentListRow, ListKind } from '../tinycld/books/lib/document-list'
+import {
+    batchSendCopy,
+    batchSendCounts,
+    batchSendOffered,
+} from '../tinycld/books/lib/document-send'
+import { purchaseTabOf } from '../tinycld/books/lib/purchase-lists'
 
 // The batch actions of a sales or purchase list (spec §3 "Batch actions"): which ticked
 // documents an action applies to, the confirm dialog's words, and the result banner's text.
@@ -37,6 +48,41 @@ function row(kind: ListKind, recordStatus: string): DocumentListRow {
 }
 
 const ids = (rows: readonly DocumentListRow[]) => rows.map(listed => listed.id)
+
+// Purchase order spec §3.9: the Purchase orders tab's Batch actions are Send and Download
+// PDF; a purchase order is never a draft and never posts, so Delete drafts and Void take
+// none of its rows, and the batch send takes an open order with an address and skips a
+// closed one.
+describe('the batch actions of the Purchase orders tab', () => {
+    const order = (status: 'open' | 'closed', email: string) => ({
+        ...row('purchase_order', status),
+        email,
+    })
+
+    it('are Send and Download PDF', () => {
+        expect(batchActionsOf(purchaseTabOf('purchase-orders'))).toEqual(['send', 'pdf'])
+    })
+
+    it('Delete drafts and Void take no purchase order', () => {
+        const rows = [order('open', 'ap@vendor.test'), order('closed', 'ap@vendor.test')]
+        expect(batchTargets('delete_drafts', rows)).toEqual({ applies: [], skipped: 2 })
+        expect(batchTargets('void', rows)).toEqual({ applies: [], skipped: 2 })
+    })
+
+    it('Send takes an open order with an address and skips a closed one', () => {
+        const rows = [
+            order('open', 'ap@vendor.test'),
+            order('open', ''),
+            order('closed', 'ap@vendor.test'),
+        ]
+        expect(batchSendOffered(rows, true)).toBe(true)
+        const counts = batchSendCounts(rows)
+        expect(counts).toEqual({ sendable: 1, noAddress: 1, notSendable: 0, closed: 1 })
+        expect(batchSendCopy(counts, true).skipped).toBe(
+            '2 are skipped: 1 has no email address, 1 is closed.'
+        )
+    })
+})
 
 describe('batchTargets', () => {
     it('delete_drafts applies to the drafts of every kind and skips the others', () => {

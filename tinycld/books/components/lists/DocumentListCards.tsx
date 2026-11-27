@@ -56,9 +56,20 @@ interface CardProps {
     isFocused: boolean
 }
 
+// A purchase order's third line on the Purchase orders tab, "Open $318.00", while its open
+// amount is above zero (`cardLines` `open`; `listCardHeight` gives it CARD_OPEN_LINE_HEIGHT).
+function CardOpenLine({ text }: { text: string }) {
+    if (text === '') return null
+    return (
+        <Text numberOfLines={1} className="text-xs text-foreground">
+            {text}
+        </Text>
+    )
+}
+
 // Two lines: the title with the amount at the right, then the detail with the status
-// badge at the right (`cardLines`). The amount never shrinks or wraps ("−$150.00" stays
-// on one line); a long title truncates instead.
+// badge at the right (`cardLines`), and a purchase order's Open line. The amount never
+// shrinks or wraps ("−$150.00" stays on one line); a long title truncates instead.
 function Card({
     row,
     tab,
@@ -71,7 +82,7 @@ function Card({
     isTicked,
     isFocused,
 }: CardProps) {
-    const { title, amount, detail } = cardLines(row, tab, currency)
+    const { title, amount, detail, open } = cardLines(row, tab, currency)
     const lead = renderLead?.(row)
     const trail = renderTrail?.(row)
     const press = () => onOpen(row)
@@ -113,6 +124,7 @@ function Card({
                         tone={row.status.tone}
                     />
                 </View>
+                <CardOpenLine text={open} />
             </Pressable>
             <EdgeCell>{trail}</EdgeCell>
             <FocusBar isVisible={isFocused} />
@@ -135,6 +147,8 @@ export function DocumentListCards({
     scrollToIndex,
 }: DocumentListCardsProps) {
     const prefix = areaOf(tab).testIdPrefix
+    const heightOf = (row: DocumentListRow, fontScale: number) =>
+        listCardHeight(row, tab, fontScale)
     const renderCard = (row: DocumentListRow, height: number) => (
         <Card
             row={row}
@@ -153,7 +167,7 @@ export function DocumentListCards({
         <ListCards
             testID={`${prefix}-cards`}
             rows={rows}
-            heightOf={listCardHeight}
+            heightOf={heightOf}
             keyOf={keyOfRow}
             renderCard={renderCard}
             onNearEnd={onNearEnd}

@@ -9,7 +9,7 @@ import type { DocumentEmailRecord } from '../lib/document-email'
 import { type SendDialogStatus, type SendKind, sendDialogStatus } from '../lib/document-send'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import type { DocumentSendTarget } from '../stores/document-send-store'
-import type { BooksCustomers } from '../types'
+import type { BooksCustomers, BooksPurchaseOrders, BooksVendors } from '../types'
 import { useEmailStatus } from './useEmailStatus'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
@@ -24,9 +24,10 @@ type Rows<T extends object, I extends object> = Collection<
     I
 >
 
-// The query of the Send dialog's document, the same for each kind: the document by id with
-// its customer through `materialize()` in the same query. Only the target's kind runs it
-// (`kind` is the target's), so the dialog makes one document read.
+// The query of the Send dialog's document, the same for each sales kind: the document by id
+// with its customer through `materialize()` in the same query, and the customer's id as
+// `partyId`. Only the target's kind runs it (`kind` is the target's), so the dialog makes
+// one document read.
 function sendDocumentQuery<
     T extends { id: string; customer: string },
     I extends object,
@@ -44,10 +45,37 @@ function sendDocumentQuery<
             .where(({ d }) => eq(d.id, target.id))
             .select(({ d }) => ({
                 ...d,
+                partyId: d.customer,
                 customerRow: materialize(
                     q
                         .from({ c: customers })
                         .where(({ c }) => eq(c.id, d.customer))
+                        .findOne()
+                ),
+            }))
+            .findOne()
+    }
+}
+
+// A purchase order's send names its vendor as the party (purchase order spec §3.6): the
+// order by id with its vendor through `materialize()`, under the same names.
+function sendOrderQuery<OI extends object, VI extends object>(
+    orders: Rows<BooksPurchaseOrders, OI>,
+    vendors: Rows<BooksVendors, VI>,
+    target: { kind: SendKind | undefined; id: string }
+) {
+    return (q: InitialQueryBuilder) => {
+        if (target.kind !== 'purchase_order' || target.id === '') return undefined
+        return q
+            .from({ d: orders })
+            .where(({ d }) => eq(d.id, target.id))
+            .select(({ d }) => ({
+                ...d,
+                partyId: d.vendor,
+                customerRow: materialize(
+                    q
+                        .from({ v: vendors })
+                        .where(({ v }) => eq(v.id, d.vendor))
                         .findOne()
                 ),
             }))
@@ -62,8 +90,8 @@ export type SendDialogDataStatus = SendDialogStatus | 'not-found'
 
 /**
  * The reads of the Send dialog (spec §3.2 "Load", §4.1 "Dialog"): the document by id from
- * its kind's collection with its customer through `materialize()` in the same query
- * (sendDocumentQuery), the one `books_settings` row, `useEmailStatus()`, and the
+ * its kind's collection with its customer (a purchase order's vendor: sendOrderQuery)
+ * through `materialize()` in the same query (sendDocumentQuery), the one `books_settings` row, `useEmailStatus()`, and the
  * organization's name (the starting texts name it when Books has no business name).
  * `status` comes from sendDialogStatus: 'ready' only once every read has landed and the
  * server can send, so the form and its editor mount with complete starting texts. A
@@ -81,6 +109,7 @@ export function useSendDialogData(target: DocumentSendTarget | null) {
         'books_refund_receipts'
     )
     const [customers, settingsCollection] = useStore('books_customers', 'books_settings')
+    const [purchaseOrders, vendors] = useStore('books_purchase_orders', 'books_vendors')
     const kind = target?.kind
     const id = target?.id ?? ''
     const on = { kind, id }
@@ -103,6 +132,10 @@ export function useSendDialogData(target: DocumentSendTarget | null) {
     const refundReceiptQuery = useLiveQuery({
         query: sendDocumentQuery(refundReceipts, customers, on, 'refund_receipt'),
         queryKey: ['books.send.refund-receipt', id],
+    })
+    const purchaseOrderQuery = useLiveQuery({
+        query: sendOrderQuery(purchaseOrders, vendors, on),
+        queryKey: ['books.send.purchase-order', id],
     })
     const settingsQuery = useLiveQuery({
         query: q => q.from({ settings: settingsCollection }).findOne(),
@@ -140,6 +173,11 @@ export function useSendDialogData(target: DocumentSendTarget | null) {
                 const emailRecord: DocumentEmailRecord | undefined = row && { kind, record: row }
                 return { query: refundReceiptQuery, source: refundReceipts, row, emailRecord }
             }
+            case 'purchase_order': {
+                const row = purchaseOrderQuery.data
+                const emailRecord: DocumentEmailRecord | undefined = row && { kind, record: row }
+                return { query: purchaseOrderQuery, source: purchaseOrders, row, emailRecord }
+            }
             case undefined:
                 return null
         }
@@ -149,9 +187,10 @@ export function useSendDialogData(target: DocumentSendTarget | null) {
     const customer = row?.customerRow
     const documentQuery = sendDoc?.query
     const isDocumentLanded = documentQuery?.isReady === true && !documentQuery.isError
-    // A settled read with no document, or a document that names a customer who is not
-    // there. A walk-in sales or refund receipt names none (customer ''), and is sendable.
-    const isCustomerGone = row !== undefined && row.customer !== '' && customer === undefined
+    // A settled read with no document, or a document that names a party (a customer, or a
+    // purchase order's vendor) who is not there. A walk-in sales or refund receipt names
+    // none (customer ''), and is sendable.
+    const isCustomerGone = row !== undefined && row.partyId !== '' && customer === undefined
     const isMissing = isDocumentLanded && (row === undefined || isCustomerGone)
     const isDocumentFailed = documentQuery?.isError === true
     const readStatus: SendDialogStatus =

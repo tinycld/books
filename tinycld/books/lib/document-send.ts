@@ -5,19 +5,21 @@ import { formatDay } from './register-range'
 import { isSendDocType, KIND_WORDS, type SEND_DOC_TYPES } from './send-doc-types'
 import { readerDayOf } from './statement-texts'
 
-// The send of a sales document by email (spec §3.1, §3.2, §4.4). The rules here are the
-// ones the Go route runs (server/document_send.go); one case table pins both
+// The send of a sales document or a purchase order by email (spec §3.1, §3.2, §4.4;
+// purchase order spec §3.6). The rules here are the ones the Go route runs
+// (server/document_send.go); one case table pins both
 // (server/testdata/document_send_cases.json). PocketBase adds a final period to the
 // server's text; the texts here are written with theirs.
 
-// The kinds the send dialog, the batch send and the sent line open: every send kind but
-// the purchase order, which the server sends (SEND_DOC_TYPES) and no screen offers yet.
+// The kinds the send dialog, the batch send and the sent line open: every kind the server
+// sends (SEND_DOC_TYPES).
 export const SEND_KINDS = [
     'invoice',
     'estimate',
     'sales_receipt',
     'credit_memo',
     'refund_receipt',
+    'purchase_order',
 ] as const satisfies readonly (typeof SEND_DOC_TYPES)[number][]
 export type SendKind = (typeof SEND_KINDS)[number]
 
@@ -159,15 +161,28 @@ export function isBatchSendable(row: BatchRow): boolean {
     return sendOffered(row.kind, row.recordStatus) && row.email !== ''
 }
 
-export type BatchSendCounts = { sendable: number; noAddress: number; notSendable: number }
+export type BatchSendCounts = {
+    sendable: number
+    noAddress: number
+    notSendable: number
+    closed: number
+}
+
+// A closed purchase order: it is never a draft or void, so the dialog names it "closed"
+// (purchase order spec §3.1).
+function isClosedOrder(row: BatchRow): boolean {
+    return row.kind === 'purchase_order' && row.recordStatus === 'closed'
+}
 
 // The ticked rows as the batch dialog counts them: sendable (sent-able, with an address),
-// no email address (sent-able, with none) and not sendable (a draft, a void document, a
-// closed estimate, a kind that is never sent), with or without an address.
+// no email address (sent-able, with none), closed (a closed purchase order) and not
+// sendable (a draft, a void document, a closed estimate, a kind that is never sent), the
+// last two with or without an address.
 export function batchSendCounts(rows: readonly BatchRow[]): BatchSendCounts {
-    const counts = { sendable: 0, noAddress: 0, notSendable: 0 }
+    const counts = { sendable: 0, noAddress: 0, notSendable: 0, closed: 0 }
     for (const row of rows) {
-        if (!sendOffered(row.kind, row.recordStatus)) counts.notSendable += 1
+        if (isClosedOrder(row)) counts.closed += 1
+        else if (!sendOffered(row.kind, row.recordStatus)) counts.notSendable += 1
         else if (row.email === '') counts.noAddress += 1
         else counts.sendable += 1
     }
@@ -195,10 +210,11 @@ function documentsWord(count: number): string {
     return count === 1 ? 'document' : 'documents'
 }
 
-// "3 are skipped: 2 have no email address, 1 is a draft or void."; null for none.
+// "3 are skipped: 2 have no email address, 1 is a draft or void, 1 is closed."; null for
+// none.
 function skippedLine(counts: BatchSendCounts): string | null {
-    const { noAddress, notSendable } = counts
-    const total = noAddress + notSendable
+    const { noAddress, notSendable, closed } = counts
+    const total = noAddress + notSendable + closed
     if (total === 0) return null
     const parts: string[] = []
     if (noAddress > 0) {
@@ -211,6 +227,7 @@ function skippedLine(counts: BatchSendCounts): string | null {
                 : `${notSendable} are drafts or void`
         )
     }
+    if (closed > 0) parts.push(closed === 1 ? '1 is closed' : `${closed} are closed`)
     return `${total} ${total === 1 ? 'is' : 'are'} skipped: ${parts.join(', ')}.`
 }
 
@@ -219,7 +236,7 @@ function skippedLine(counts: BatchSendCounts): string | null {
 // than MAX_SEND_DOCUMENTS (the refusal then says so). With email not set up the dialog
 // reads only that, and has only Close.
 export function batchSendCopy(counts: BatchSendCounts, canSendEmail: boolean): BatchSendCopy {
-    const ticked = counts.sendable + counts.noAddress + counts.notSendable
+    const ticked = counts.sendable + counts.noAddress + counts.notSendable + counts.closed
     const title = `Send ${ticked} ${documentsWord(ticked)}?`
     if (!canSendEmail) {
         return {

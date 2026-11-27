@@ -4,8 +4,8 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
-import { router } from 'expo-router'
-import { type ReactNode, useId, useRef } from 'react'
+import { router, useFocusEffect } from 'expo-router'
+import { type ReactNode, useCallback, useId, useRef } from 'react'
 import { Pressable, ScrollView, Text, View, type ViewInstance } from 'react-native'
 import {
     type DocumentRecord,
@@ -51,12 +51,14 @@ import {
     type SalesDocumentKind,
 } from '../../lib/sales-document-kinds'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
+import { useCopyToBillStore } from '../../stores/copy-to-bill-store'
 import { InDepositNotice } from '../deposits/InDepositNotice'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
 import { WriteOffDialog } from '../write-offs/WriteOffDialog'
 import { AttachmentsSection } from './AttachmentsSection'
+import { ClosePurchaseOrderDialog } from './ClosePurchaseOrderDialog'
 import { CopyToBillDialog } from './CopyToBillDialog'
 import { RemoveApplicationDialog } from './DocumentApplications'
 import { DocumentDetail } from './DocumentDetail'
@@ -514,16 +516,40 @@ function ReadWriteOffDialog({ owner, isVisible }: { owner: string; isVisible: bo
     return <WriteOffDialog owner={owner} />
 }
 
+// A list row's Copy to bill pushes this order and asks for its dialog
+// (`useCopyToBillStore.openOnRead`): this read view takes it as the owner while it has the
+// focus, and opens the dialog only while it still offers Copy to bill (`isOffered`).
+function useClaimCopyToBill(
+    orderId: string,
+    owner: string,
+    isVisible: boolean,
+    isOffered: boolean
+) {
+    const pendingOrder = useCopyToBillStore(state => state.pendingOrder)
+    const claim = useCopyToBillStore(state => state.claim)
+    useFocusEffect(
+        useCallback(() => {
+            if (!isVisible || pendingOrder !== orderId) return
+            claim(orderId, owner, isOffered)
+        }, [isVisible, pendingOrder, orderId, owner, isOffered, claim])
+    )
+}
+
 // The Copy to bill dialog of this read view; only a purchase order offers Copy to bill.
 function ReadCopyToBillDialog({
     owner,
+    orderId,
     currency,
     isVisible,
+    isOffered,
 }: {
     owner: string
+    orderId: string
     currency: string
     isVisible: boolean
+    isOffered: boolean
 }) {
+    useClaimCopyToBill(orderId, owner, isVisible, isOffered)
     if (!isVisible) return null
     return <CopyToBillDialog owner={owner} currency={currency} />
 }
@@ -769,7 +795,11 @@ export function DocumentReadView({ data, record, tab, notice }: DocumentReadView
         readBadgeOf(record, documentKind.balanceBadge, refunded)
     const footerStacksBelow = documentKind.readFooterStacksBelow?.(data.lines) ?? 0
     const sentLine = <ReadSentLine record={record} testId={doc.testId} />
-    const isActionBusy = read.voidDialog.isPending || read.deleteDialog.isPending
+    const isActionBusy =
+        read.voidDialog.isPending ||
+        read.deleteDialog.isPending ||
+        read.closeDialog.isPending ||
+        read.isReopening
     const body = (
         <>
             <ReadBand
@@ -869,11 +899,14 @@ export function DocumentReadView({ data, record, tab, notice }: DocumentReadView
                 />
                 <VoidDialog {...read.voidDialog} />
                 <DeleteDraftDialog {...read.deleteDialog} />
+                <ClosePurchaseOrderDialog {...read.closeDialog} />
                 <ReadWriteOffDialog owner={owner} isVisible={isInvoice} />
                 <ReadCopyToBillDialog
                     owner={owner}
+                    orderId={record.id}
                     currency={data.currency}
                     isVisible={isPurchaseOrder}
+                    isOffered={read.isCopyToBillOffered}
                 />
                 <ReadSendDialog
                     owner={owner}

@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 import { billCellTestId } from './bill-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { openPurchases, openPurchaseTab, purchaseRow } from './purchase-lists-helpers'
 import { recordIdFromUrl } from './record-key-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
@@ -128,6 +129,8 @@ export type PurchaseOrderInput = {
     // Account line 1's description.
     accountDescription?: string
     memo: string
+    // The order's Email, typed over the vendor's after the pick.
+    email?: string
     message?: string
     // One product line: a seeded product with purchasing on, and its quantity.
     product?: { name: string; quantity: string }
@@ -180,6 +183,9 @@ export async function makePurchaseOrder(
 ): Promise<MadePurchaseOrder> {
     await openNewPurchaseOrder(page)
     await pickPurchaseOrderVendor(page, order.vendor)
+    if (order.email !== undefined) {
+        await page.getByTestId('form-input-email').fill(order.email)
+    }
     const line = await purchaseOrderLineRowId(page, 'account_lines', 0)
     const first = purchaseOrderCell(page, 'account_lines', line)
     if (order.amount === undefined) {
@@ -268,6 +274,22 @@ export async function submitCopyToBill(page: Page, number: string) {
 export async function copyOrderToBill(page: Page, number: string) {
     await openCopyToBill(page)
     await submitCopyToBill(page, number)
+}
+
+// The Purchase orders tab of the Expenses area (purchase order spec §3.9), checkpoint 5.
+
+// Books must be open at a width that draws the sidebar. The sidebar's Expenses item, then
+// the Purchase orders tab; waits for the tab's list.
+export async function openPurchaseOrdersTab(page: Page) {
+    await openPurchases(page)
+    await openPurchaseTab(page, 'purchase-orders')
+    await expect(visibleOrderPart(page, 'purchases-list')).toBeVisible()
+}
+
+// An order's row (table) or card (below the table's minimum width) in the visible list,
+// by the order's id.
+export function purchaseOrderRow(page: Page, id: string): Locator {
+    return purchaseRow(page, id)
 }
 
 // Whether a control cannot be used: it is not drawn, is disabled, or is no Tab stop (a

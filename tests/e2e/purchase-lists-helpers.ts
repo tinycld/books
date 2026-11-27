@@ -74,11 +74,13 @@ export async function openPurchaseRowMenu(page: Page, id: string) {
 }
 
 // The actions of the open row menu, in menu order (`open`, `pay-bill`, …), read in one
-// snapshot. `edit` is matched too, so a menu that wrongly holds Edit shows it.
+// snapshot. `edit` is matched too, so a menu that wrongly holds Edit shows it. A purchase
+// order's rows (`copy-to-bill`, `send`, `close`, `delete`) are matched too (purchase order
+// spec §3.9).
 export function purchaseRowMenuActions(page: Page): Promise<string[]> {
     return page.evaluate(() => {
         const pattern =
-            /^purchases-row-action-(open|pay-bill|apply-credit|record-refund|void|copy|entry|delete-draft|edit|pdf)$/
+            /^purchases-row-action-(open|copy-to-bill|pay-bill|apply-credit|record-refund|void|copy|entry|delete-draft|delete|edit|send|pdf|close)$/
         return Array.from(
             document.querySelectorAll<HTMLElement>('[data-testid^="purchases-row-action-"]')
         )

@@ -1,12 +1,14 @@
-// One vendor's purchase documents as one list (vendor pages §3.5): bills, expenses, bill
-// payments, vendor credits and vendor refunds mapped to the party row shape with their
-// status badge. Pure, so each rule is unit-tested; the hook
+// One vendor's purchase documents as one list (vendor pages §3.5): bills, purchase orders,
+// expenses, bill payments, vendor credits and vendor refunds mapped to the party row shape
+// with their status badge. Pure, so each rule is unit-tested; the hook
 // (hooks/useVendorTransactions.ts) feeds it and `mergeTransactions` merges the lists.
 
 import type {
     BooksBillPayments,
     BooksBills,
     BooksExpenses,
+    BooksPurchaseOrderLines,
+    BooksPurchaseOrders,
     BooksVendorCredits,
     BooksVendorRefunds,
 } from '../types'
@@ -17,10 +19,12 @@ import {
     lifecycleStatus,
     type PartyTransactionRow,
 } from './party-transactions'
+import { purchaseOrderBadge } from './purchase-order-status'
 import { documentKey } from './record-key'
 
 export type VendorTransactionKind =
     | 'bill'
+    | 'purchase_order'
     | 'expense'
     | 'bill_payment'
     | 'vendor_credit'
@@ -34,19 +38,21 @@ type Status = VendorTransactionRow['status']
 
 export const VENDOR_TRANSACTION_TYPE_LABELS: Record<VendorTransactionKind, string> = {
     bill: 'Bill',
+    purchase_order: 'Purchase order',
     expense: 'Expense',
     bill_payment: 'Bill payment',
     vendor_credit: 'Vendor credit',
     vendor_refund: 'Vendor refund',
 }
 
-// The chips, in strip order.
+// The chips, in strip order: Purchase orders after Bills, as the Expenses tabs are.
 export const VENDOR_TRANSACTION_FILTERS: readonly {
     key: VendorTransactionFilter
     label: string
 }[] = [
     { key: 'all', label: 'All' },
     { key: 'bill', label: 'Bills' },
+    { key: 'purchase_order', label: 'Purchase orders' },
     { key: 'expense', label: 'Expenses' },
     { key: 'bill_payment', label: 'Bill payments' },
     { key: 'vendor_credit', label: 'Vendor credits' },
@@ -56,6 +62,7 @@ export const VENDOR_TRANSACTION_FILTERS: readonly {
 // Where each kind's stored document opens (`documentHref`).
 export const VENDOR_TRANSACTION_ROUTES: Record<VendorTransactionKind, string> = {
     bill: 'books/bills',
+    purchase_order: 'books/purchase-orders',
     expense: 'books/expenses',
     bill_payment: 'books/bill-payments',
     vendor_credit: 'books/vendor-credits',
@@ -64,6 +71,7 @@ export const VENDOR_TRANSACTION_ROUTES: Record<VendorTransactionKind, string> = 
 
 const NO_MATCH_NOUNS: Record<VendorTransactionKind, string> = {
     bill: 'bills',
+    purchase_order: 'purchase orders',
     expense: 'expenses',
     bill_payment: 'bill payments',
     vendor_credit: 'vendor credits',
@@ -89,6 +97,9 @@ type ExpenseInput = Pick<BooksExpenses, Common | 'total'>
 type BillPaymentInput = Pick<BooksBillPayments, Common | 'total'>
 type VendorCreditInput = Pick<BooksVendorCredits, Common | 'total' | 'balance'>
 type VendorRefundInput = Pick<BooksVendorRefunds, Common | 'amount'>
+// A purchase order is never replaced by a correction, so it has no `replaced_by`.
+type PurchaseOrderInput = Pick<BooksPurchaseOrders, Exclude<Common, 'replaced_by'> | 'total'>
+type PurchaseOrderLineInput = Pick<BooksPurchaseOrderLines, 'received' | 'billed'>
 
 // A posted vendor credit reads Unapplied while credit is left on it, else Closed.
 function vendorCreditStatus(row: VendorCreditInput): Status {
@@ -99,7 +110,7 @@ function vendorCreditStatus(row: VendorCreditInput): Status {
 }
 
 function rowOf(
-    row: Pick<BooksBills, Common>,
+    row: Pick<BooksBills, Exclude<Common, 'status' | 'replaced_by'>> & { replaced_by?: string },
     kind: VendorTransactionKind,
     fields: { dueDate: string; total: number; status: Status }
 ): VendorTransactionRow {
@@ -121,6 +132,19 @@ export function billRow(row: BillInput, today: string): VendorTransactionRow {
         dueDate: row.due_date,
         total: row.total,
         status: dueDocumentStatus(row, today),
+    })
+}
+
+// A purchase order has no due date; its total is shown unsigned and its badge reads its
+// lines (`purchaseOrderBadge`: Open, Partly received or Closed; purchase order spec §3.9).
+export function purchaseOrderRow(
+    row: PurchaseOrderInput,
+    lines: readonly PurchaseOrderLineInput[]
+): VendorTransactionRow {
+    return rowOf(row, 'purchase_order', {
+        dueDate: '',
+        total: row.total,
+        status: purchaseOrderBadge(row, lines),
     })
 }
 

@@ -14,6 +14,7 @@ import {
     itemLineRows,
     postBill,
 } from './bill-helpers'
+import { dashboardScreen, openDashboard } from './dashboard-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
 import { settleFrames } from './journal-entries-helpers'
 import { tabTo } from './keyboard-helpers'
@@ -556,9 +557,21 @@ test.describe('purchase-orders: copy to bill', () => {
         await expect(visibleOrderPart(page, 'purchase-order-read-copy-to-bill')).toBeVisible()
         await expect(billsRow(page, billId)).toContainText(`Bill ${billNumber}`)
 
+        // The order was opened from this bill, so the bill's screen is below it: the Bills
+        // row goes back to that screen (useOpenDocument keeps one copy of a screen in the
+        // stack), and the order's screen leaves the stack.
+        await billsRow(page, billId).getByText(`Bill ${billNumber}`, { exact: true }).click()
+        await expectRecordUrl(page, 'bills', billId)
+        await expect(page.getByTestId('bill-read-only').filter({ visible: true })).toBeVisible()
+        await expect(page.getByTestId('purchase-order-read-only')).toHaveCount(0)
+
         // The Bills section's read fails on a fresh page (a row already in the store sends
         // no request): its own error row, the rest of the read view shows, and Retry lists
-        // the bill.
+        // the bill. The pages share the context's storage, and the rail reopens Books at
+        // its last route, so this page opens the dashboard first: the second page then
+        // lands on the dashboard, not on this bill, and opens the order from search with
+        // no bill's screen below it.
+        await openDashboard(page)
         const second = await context.newPage()
         await second.route('**/api/collections/books_bills/records*', route => {
             const filter = new URL(route.request().url()).searchParams.get('filter') ?? ''
@@ -570,6 +583,8 @@ test.describe('purchase-orders: copy to bill', () => {
             })
         })
         await openBooks(second)
+        await expect(second).toHaveURL(/\/books\/dashboard\/?$/)
+        await expect(dashboardScreen(second)).toBeVisible()
         await openPurchaseOrderBySearch(second, memo)
         const section = visibleOrderPart(second, 'purchase-order-bills')
         await expect(section.getByRole('alert')).toBeVisible()
@@ -580,13 +595,14 @@ test.describe('purchase-orders: copy to bill', () => {
         await section.getByRole('button', { name: 'Retry' }).click()
         await expect(billsRow(second, billId)).toContainText(`Bill ${billNumber}`)
         await expect(section.getByRole('alert')).toHaveCount(0)
-        await second.close()
 
-        // The Bills row opens the posted bill; its read view names the order.
-        await billsRow(page, billId).getByText(`Bill ${billNumber}`, { exact: true }).click()
-        await expectRecordUrl(page, 'bills', billId)
-        await expect(page.getByTestId('bill-read-only').filter({ visible: true })).toBeVisible()
-        await expect(visibleOrderPart(page, 'bill-from-purchase-order')).toHaveText(
+        // No bill's screen is below the order here, so the Bills row pushes the posted bill
+        // over the order, which stays mounted under it; the bill's read view names the order.
+        await billsRow(second, billId).getByText(`Bill ${billNumber}`, { exact: true }).click()
+        await expectRecordUrl(second, 'bills', billId)
+        await expect(second.getByTestId('bill-read-only').filter({ visible: true })).toBeVisible()
+        await expect(second.getByTestId('purchase-order-read-only')).toHaveCount(1)
+        await expect(visibleOrderPart(second, 'bill-from-purchase-order')).toHaveText(
             `From purchase order ${order.number}`
         )
 
@@ -594,30 +610,31 @@ test.describe('purchase-orders: copy to bill', () => {
         // the order's number (spec §3.8 "From purchase order 1004"). The correction
         // replaces the bill's read view, so Cancel goes to the order below it (lesson 6).
         const correctionUrl = new RegExp(`/books/bills/new\\?replaces=${billId}$`)
-        await page.keyboard.press('e')
-        await expect(page).toHaveURL(correctionUrl)
-        await expect(visibleBillForm(page)).toBeVisible()
-        await expect(visibleOrderPart(page, 'bill-from-purchase-order')).toHaveText(
+        await second.keyboard.press('e')
+        await expect(second).toHaveURL(correctionUrl)
+        await expect(visibleBillForm(second)).toBeVisible()
+        await expect(visibleOrderPart(second, 'bill-from-purchase-order')).toHaveText(
             `From purchase order ${order.number}`
         )
-        await visibleOrderPart(page, 'bill-cancel').click()
-        await expectRecordUrl(page, 'purchase-orders', order.id)
-        await expect(readView(page)).toBeVisible()
+        await visibleOrderPart(second, 'bill-cancel').click()
+        await expectRecordUrl(second, 'purchase-orders', order.id)
+        await expect(readView(second)).toBeVisible()
 
         // A copy of the posted bill carries no order link.
-        await billsRow(page, billId).getByText(`Bill ${billNumber}`, { exact: true }).click()
-        await expectRecordUrl(page, 'bills', billId)
-        await expect(page.getByTestId('bill-read-only').filter({ visible: true })).toBeVisible()
-        await page.keyboard.press('c')
-        await expect(page).toHaveURL(/\/books\/bills\/new\?copy=[^&#]+$/)
-        await expect(visibleBillForm(page)).toBeVisible()
-        await expect(visibleBillForm(page).getByTestId('form-field-vendor')).toContainText(
+        await billsRow(second, billId).getByText(`Bill ${billNumber}`, { exact: true }).click()
+        await expectRecordUrl(second, 'bills', billId)
+        await expect(second.getByTestId('bill-read-only').filter({ visible: true })).toBeVisible()
+        await second.keyboard.press('c')
+        await expect(second).toHaveURL(/\/books\/bills\/new\?copy=[^&#]+$/)
+        await expect(visibleBillForm(second)).toBeVisible()
+        await expect(visibleBillForm(second).getByTestId('form-field-vendor')).toContainText(
             OFFICE_SUPPLY.name
         )
-        await expect(visibleOrderPart(page, 'bill-from-purchase-order')).toHaveCount(0)
+        await expect(visibleOrderPart(second, 'bill-from-purchase-order')).toHaveCount(0)
         await expect
-            .poll(() => isLocked(visibleBillForm(page).getByTestId('form-input-vendor')))
+            .poll(() => isLocked(visibleBillForm(second).getByTestId('form-input-vendor')))
             .toBe(false)
+        await second.close()
     })
 
     test('the Copy to bill sheet at 390', async ({ page }) => {

@@ -18,13 +18,14 @@ type TabState = { filters: DocumentListFilters; sort: ListSort }
 // coming back to that scope shows none. A change of sort keeps the scope.
 type Scoped<T> = { scope: string } & T
 
-// A row menu's Void or Delete draft dialog. `row` is the row as it was when the dialog
-// opened, so its words stay while the write changes the row under it; `listKey` is the
-// mounted list that opened it (its tab's `tabStateKey` and an id of that list), so another
-// list of the same tab mounted under it does not draw it too.
+// A row menu's Void, Delete draft, Delete (a purchase order) or Close (a purchase order)
+// dialog. `row` is the row as it was when the dialog opened, so its words stay while the
+// write changes the row under it; `listKey` is the mounted list that opened it (its tab's
+// `tabStateKey` and an id of that list), so another list of the same tab mounted under it
+// does not draw it too.
 export type RowDialog = {
     listKey: string
-    action: 'void' | 'delete_draft'
+    action: 'void' | 'delete_draft' | 'delete' | 'close'
     row: DocumentListRow
     isRunning: boolean
 }

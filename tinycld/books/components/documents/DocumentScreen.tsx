@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useFocusEffect } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
 import { View } from 'react-native'
 import type { DocumentScreenInput } from '../../hooks/document-data'
 import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
 import { type DocumentTab, documentTabOf } from '../../lib/document-routes'
 import { ESTIMATE_KIND } from '../../lib/sales-document-kinds'
 import { formSessionKey, useAttachmentsStore } from '../../stores/attachments-store'
+import { useCopyToBillStore } from '../../stores/copy-to-bill-store'
 import { DocumentForm } from './DocumentForm'
 import { DocumentLoadError } from './DocumentLoadError'
 import { DocumentLoading } from './DocumentLoading'
@@ -132,6 +134,37 @@ function useFormAttachmentSession(documentKind: DocumentKind, formKey: string): 
     return sessionKey
 }
 
+// The states in which no read view of the document draws, so none can take a list row's
+// Copy to bill request for it.
+const UNREADABLE_STATES: ReadonlySet<DocumentScreenData['state']> = new Set([
+    'error',
+    'not-found',
+    'no-access',
+])
+
+// A list row's Copy to bill asks this document's read view for its dialog
+// (useOpenOrderWithCopyToBill), and pushes this screen. The request is dropped, so a later
+// visit does not open the dialog unasked, when the document shows its load error, not-found
+// or no-access instead, and when this screen loses the focus or unmounts (Back while the
+// order loads) with the request it gained the focus with still not taken. A request that
+// comes while this screen already has the focus is for the screen the row pushes, so this
+// screen's blur leaves it.
+function useDropUnreadCopyToBill(id: string | null, state: DocumentScreenData['state']) {
+    const isUnreadable = UNREADABLE_STATES.has(state)
+    useEffect(() => {
+        if (id === null || !isUnreadable) return
+        useCopyToBillStore.getState().dropPending(id)
+    }, [id, isUnreadable])
+    useFocusEffect(
+        useCallback(() => {
+            if (id === null) return
+            const store = useCopyToBillStore.getState()
+            if (store.pendingOrder !== id) return
+            return () => store.dropPending(id)
+        }, [id])
+    )
+}
+
 /**
  * A sales document route's one screen: it loads the document of the kind (or nothing, on
  * a new form) and shows the state `documentScreenState` names, on the tab the `tab` param
@@ -153,6 +186,7 @@ export function DocumentScreen({
     const [reloads, setReloads] = useState(0)
     const attachmentSession = useFormAttachmentSession(documentKind, data.formKey)
     const focusesFirstField = useOpensForm(data.state)
+    useDropUnreadCopyToBill(input.id, data.state)
     // The store can be behind the server (a realtime message that did not arrive), and a
     // form built from it would be refused again, so the rows are read again first. A
     // failed read rejects before the count moves: the form stays, with what is typed in

@@ -14,6 +14,7 @@ import type { DocumentReadAction } from './document-actions'
 import { sendOffered } from './document-send'
 import { entryStatusText } from './entry-display'
 import { estimateStatusLabel } from './estimate-status'
+import { formatMoney } from './money'
 import type { DocumentLifecycle } from './sales-document-kinds'
 
 export type DocumentStatus =
@@ -255,4 +256,12 @@ export function orderReadActions(input: {
     }
     const reopen: DocumentReadAction[] = isAdmin && closedReason === 'manual' ? ['reopen'] : []
     return ['copy', 'pdf', ...reopen]
+}
+
+// The Close confirm's body (purchase order spec §3.6, Q6): how many lines are still open
+// (`isOrderLineOpen`) and the order's open amount, in the shared money text.
+export function orderCloseBody(openLines: number, openAmount: number, currency: string): string {
+    const lines = openLines === 1 ? '1 line is' : `${openLines} lines are`
+    const amount = formatMoney(openAmount, currency)
+    return `${lines} still open (${amount}). Nothing more can be copied to a bill.`
 }

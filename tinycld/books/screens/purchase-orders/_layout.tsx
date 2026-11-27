@@ -1,9 +1,10 @@
-import { Stack } from 'expo-router'
+import { DocumentKindLayout } from '../../components/lists/DocumentKindLayout'
+import { purchaseTabOf } from '../../lib/purchase-lists'
 
-// The purchase order screens (`new`, `[id]`) in their own stack. The Purchase orders list
-// tab, and with it the kind's list layout, comes with the purchase lists.
+const TAB = purchaseTabOf('purchase-orders')
+
+// The Purchase orders list — `/a/books/purchase-orders` — with each order open over or
+// beside it.
 export default function PurchaseOrdersLayout() {
-    return <Stack screenOptions={STACK_OPTIONS} />
+    return <DocumentKindLayout tab={TAB} hasNew />
 }
-
-const STACK_OPTIONS = { headerShown: false }

@@ -10,6 +10,7 @@ import type { VendorTransactionFilter, VendorTransactionKind } from './vendor-tr
 
 const ALL_KINDS: readonly VendorTransactionKind[] = [
     'bill',
+    'purchase_order',
     'expense',
     'bill_payment',
     'vendor_credit',
@@ -19,6 +20,7 @@ const ALL_KINDS: readonly VendorTransactionKind[] = [
 // The New action of each kind, by its NEW_ACTIONS id: a bill payment is made on Pay Bills.
 const NEW_ACTION_IDS: Record<VendorTransactionKind, string> = {
     bill: 'bill',
+    purchase_order: 'purchase_order',
     expense: 'expense',
     bill_payment: 'pay_bills',
     vendor_credit: 'vendor_credit',
@@ -27,6 +29,7 @@ const NEW_ACTION_IDS: Record<VendorTransactionKind, string> = {
 
 const NEW_LABELS: Record<VendorTransactionKind, string> = {
     bill: 'New bill',
+    purchase_order: 'New purchase order',
     expense: 'New expense',
     bill_payment: 'Pay bills',
     vendor_credit: 'New vendor credit',
@@ -91,6 +94,15 @@ export const PURCHASE_TABS: readonly DocumentListTab[] = [
         columns: ['date', 'number', 'vendor', 'due', 'balance', 'total', 'status'],
         chips: chips('All', 'Open', 'Overdue', 'Paid', 'Draft', 'Void'),
         sortKeys: ['due', 'balance'],
+    }),
+    // Purchase order spec §3.9: Open is the order's stored `open_amount`.
+    kindTab('purchase_order', {
+        key: 'purchase-orders',
+        label: 'Purchase orders',
+        noun: 'purchase orders',
+        columns: ['date', 'number', 'vendor', 'open', 'total', 'status'],
+        chips: chips('All', 'Open', 'Closed'),
+        sortKeys: ['open'],
     }),
     kindTab('expense', {
         key: 'expenses',

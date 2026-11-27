@@ -6,13 +6,24 @@ import {
     VENDOR_CREDIT_MESSAGES,
 } from '../tinycld/books/lib/document-texts'
 import { PAY_BILLS_MESSAGES } from '../tinycld/books/lib/pay-bills-texts'
+import { isOrderLineOpen } from '../tinycld/books/lib/purchase-order-status'
 import {
+    PURCHASE_ORDER_BILLS,
+    PURCHASE_ORDER_IDS,
+    PURCHASE_ORDER_LINES,
+    PURCHASE_ORDERS,
+} from '../tinycld/books/lib/purchase-orders-fixture'
+import {
+    PURCHASE_ROW_MENU_LABELS,
     purchaseRowActionHref,
     purchaseRowMenuItems,
     purchaseVoidTexts,
 } from '../tinycld/books/lib/purchase-row-menu'
 import { VENDOR_REFUND_FLOW } from '../tinycld/books/lib/vendor-refund-flow'
-import type { VendorTransactionKind } from '../tinycld/books/lib/vendor-transactions'
+import {
+    purchaseOrderRow,
+    type VendorTransactionKind,
+} from '../tinycld/books/lib/vendor-transactions'
 
 // The row menu of a purchase list (spec §3 "Row menu"): Open, then the read view's actions for
 // the document's status and the user's access, in the read view's order and with its labels,
@@ -167,6 +178,189 @@ describe('purchaseRowMenuItems', () => {
             expect(items).not.toContain('edit')
             expect(items[0]).toBe('open')
         }
+    })
+})
+
+// The row menu of a purchase order (purchase order spec §3.9 "Row menu"), in the spec's
+// order: Open, Copy to bill (open orders with an open line, writers), Edit (open, writers),
+// Send… (open, writers), Download PDF, Copy (writers), Close (admin, open), Delete (writers,
+// no bills; the server refuses the delete of a closed order and of one any bill names).
+describe('purchaseRowMenuItems of a purchase order', () => {
+    const IDS = PURCHASE_ORDER_IDS
+
+    function orderRow(id: string, fields: Partial<DocumentListRow> = {}): DocumentListRow {
+        const order = PURCHASE_ORDERS.find(candidate => candidate.id === id)
+        if (!order) throw new Error(`no fixture order ${id}`)
+        const lines = PURCHASE_ORDER_LINES.filter(line => line.purchase_order === id)
+        return {
+            ...purchaseOrderRow(order, lines),
+            sequence: order.sequence,
+            partyId: order.vendor,
+            partyName: '',
+            memo: order.memo,
+            reference: '',
+            expires: '',
+            balance: order.open_amount,
+            entry: '',
+            convertedInvoice: '',
+            recordStatus: order.status,
+            category: { kind: 'none' },
+            email: order.email,
+            hasBills: PURCHASE_ORDER_BILLS.some(bill => bill.purchase_order === id),
+            openLines: lines.filter(isOrderLineOpen).length,
+            ...fields,
+        }
+    }
+
+    const ADMIN = true
+    const NOT_ADMIN = false
+
+    // fixture order × access → the menu.
+    const ORDER_CASES: [string, () => DocumentListRow, boolean, boolean, string[]][] = [
+        [
+            '1004 open, no bill, writer',
+            () => orderRow(IDS.open),
+            WRITER,
+            NOT_ADMIN,
+            ['open', 'copy_to_bill', 'edit', 'send', 'pdf', 'copy', 'delete'],
+        ],
+        [
+            '1004 open, no bill, admin',
+            () => orderRow(IDS.open),
+            WRITER,
+            ADMIN,
+            ['open', 'copy_to_bill', 'edit', 'send', 'pdf', 'copy', 'close', 'delete'],
+        ],
+        [
+            '1004 open, no bill, reader',
+            () => orderRow(IDS.open),
+            READER,
+            NOT_ADMIN,
+            ['open', 'pdf'],
+        ],
+        [
+            '1003 partly received, a posted bill, writer',
+            () => orderRow(IDS.partly),
+            WRITER,
+            NOT_ADMIN,
+            ['open', 'copy_to_bill', 'edit', 'send', 'pdf', 'copy'],
+        ],
+        [
+            '1003 partly received, a posted bill, admin',
+            () => orderRow(IDS.partly),
+            WRITER,
+            ADMIN,
+            ['open', 'copy_to_bill', 'edit', 'send', 'pdf', 'copy', 'close'],
+        ],
+        [
+            '1003 partly received, reader',
+            () => orderRow(IDS.partly),
+            READER,
+            NOT_ADMIN,
+            ['open', 'pdf'],
+        ],
+        [
+            '1005 open, a draft bill, writer',
+            () => orderRow(IDS.draftBill),
+            WRITER,
+            NOT_ADMIN,
+            ['open', 'copy_to_bill', 'edit', 'send', 'pdf', 'copy'],
+        ],
+        [
+            '1005 open, a draft bill, admin',
+            () => orderRow(IDS.draftBill),
+            WRITER,
+            ADMIN,
+            ['open', 'copy_to_bill', 'edit', 'send', 'pdf', 'copy', 'close'],
+        ],
+        [
+            '1005 open, a draft bill, reader',
+            () => orderRow(IDS.draftBill),
+            READER,
+            NOT_ADMIN,
+            ['open', 'pdf'],
+        ],
+        [
+            '1002 closed by hand, writer',
+            () => orderRow(IDS.closedManual),
+            WRITER,
+            NOT_ADMIN,
+            ['open', 'pdf', 'copy'],
+        ],
+        [
+            '1002 closed by hand, admin',
+            () => orderRow(IDS.closedManual),
+            WRITER,
+            ADMIN,
+            ['open', 'pdf', 'copy'],
+        ],
+        [
+            '1002 closed by hand, reader',
+            () => orderRow(IDS.closedManual),
+            READER,
+            NOT_ADMIN,
+            ['open', 'pdf'],
+        ],
+        [
+            '1001 closed as received, writer',
+            () => orderRow(IDS.closedReceived),
+            WRITER,
+            NOT_ADMIN,
+            ['open', 'pdf', 'copy'],
+        ],
+        [
+            '1001 closed as received, admin',
+            () => orderRow(IDS.closedReceived),
+            WRITER,
+            ADMIN,
+            ['open', 'pdf', 'copy'],
+        ],
+        [
+            '1001 closed as received, reader',
+            () => orderRow(IDS.closedReceived),
+            READER,
+            NOT_ADMIN,
+            ['open', 'pdf'],
+        ],
+        [
+            'an open order with nothing open, no bill, writer: no Copy to bill',
+            () => orderRow(IDS.open, { balance: 0, openLines: 0 }),
+            WRITER,
+            NOT_ADMIN,
+            ['open', 'edit', 'send', 'pdf', 'copy', 'delete'],
+        ],
+        [
+            'an open order whose open line has an open amount of 0 (a rate-0 product), writer: Copy to bill',
+            () => orderRow(IDS.open, { balance: 0, openLines: 1 }),
+            WRITER,
+            NOT_ADMIN,
+            ['open', 'copy_to_bill', 'edit', 'send', 'pdf', 'copy', 'delete'],
+        ],
+    ]
+
+    it.each(ORDER_CASES)('%s', (_name, listedOf, canWrite, isAdmin, expected) => {
+        expect(purchaseRowMenuItems(listedOf(), canWrite, isAdmin)).toEqual(expected)
+    })
+
+    it('labels the actions as the read view does', () => {
+        expect(PURCHASE_ROW_MENU_LABELS.copy_to_bill).toBe('Copy to bill')
+        expect(PURCHASE_ROW_MENU_LABELS.edit).toBe('Edit')
+        expect(PURCHASE_ROW_MENU_LABELS.send).toBe('Send…')
+        expect(PURCHASE_ROW_MENU_LABELS.pdf).toBe('Download PDF')
+        expect(PURCHASE_ROW_MENU_LABELS.close).toBe('Close')
+    })
+
+    it("opens the order by its number, Edit with ?edit=1 and Copy at the kind's new route", () => {
+        const row = orderRow(IDS.open)
+        expect(purchaseRowActionHref(row, 'open')).toBe('books/purchase-orders/1004')
+        expect(parts(purchaseRowActionHref(row, 'edit'))).toEqual({
+            path: 'books/purchase-orders/1004',
+            params: { edit: '1' },
+        })
+        expect(parts(purchaseRowActionHref(row, 'copy'))).toEqual({
+            path: 'books/purchase-orders/new',
+            params: { copy: IDS.open },
+        })
     })
 })
 

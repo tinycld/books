@@ -379,3 +379,60 @@ describe('useCopyToBillStore', () => {
         expect(useCopyToBillStore.getState().take('po-d')).toEqual(choiceOf('line-d', 5))
     })
 })
+
+// A list row's Copy to bill asks the pushed read view to open the dialog (`openOnRead`).
+// The request is dropped when nobody claims it (`dropPending`: the list screen gains the
+// focus again, or the order's screen shows its load error or not-found), and a claim opens
+// the dialog only while the order still offers Copy to bill (`claim`'s `isOffered`); else
+// the claim drops the request (cp5 fix round 1, item 8).
+describe('useCopyToBillStore pending Copy to bill requests', () => {
+    const store = () => useCopyToBillStore.getState()
+
+    function reset() {
+        useCopyToBillStore.setState({ openFor: null, pendingOrder: null })
+    }
+
+    it('a claim while Copy to bill is offered opens the dialog for the claiming screen', () => {
+        reset()
+        store().openOnRead('po-e')
+        store().claim('po-e', 'owner-1', true)
+        expect(store().openFor).toEqual({ orderId: 'po-e', owner: 'owner-1' })
+        expect(store().pendingOrder).toBeNull()
+    })
+
+    it('a claim once Copy to bill is no longer offered drops the request and opens nothing', () => {
+        reset()
+        store().openOnRead('po-f')
+        store().claim('po-f', 'owner-1', false)
+        expect(store().openFor).toBeNull()
+        expect(store().pendingOrder).toBeNull()
+        // The next visit to the order opens no dialog.
+        store().claim('po-f', 'owner-2', true)
+        expect(store().openFor).toBeNull()
+    })
+
+    it('dropPending with no order drops any unclaimed request, so a later visit opens nothing', () => {
+        reset()
+        store().openOnRead('po-g')
+        store().dropPending()
+        expect(store().pendingOrder).toBeNull()
+        store().claim('po-g', 'owner-1', true)
+        expect(store().openFor).toBeNull()
+    })
+
+    it("dropPending of an order drops that order's request only", () => {
+        reset()
+        store().openOnRead('po-h')
+        store().dropPending('po-other')
+        expect(store().pendingOrder).toBe('po-h')
+        store().dropPending('po-h')
+        expect(store().pendingOrder).toBeNull()
+    })
+
+    it('dropPending leaves an open dialog open', () => {
+        reset()
+        store().open('po-i', 'owner-1')
+        store().dropPending()
+        expect(store().openFor).toEqual({ orderId: 'po-i', owner: 'owner-1' })
+    })
+})

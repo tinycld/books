@@ -12,6 +12,10 @@ import { PressBoundary } from '../PressBoundary'
 
 const TRIGGER_STYLE = { width: 44, minHeight: 44 }
 
+function isDestructiveAction(action: ListRowAction): boolean {
+    return action === 'void' || action === 'delete_draft' || action === 'delete'
+}
+
 interface MenuItemsProps {
     row: DocumentListRow
     testIdPrefix: string
@@ -28,7 +32,7 @@ function MenuItems({ row, testIdPrefix, items, actions }: MenuItemsProps) {
                 key={action}
                 testID={rowActionTestId(testIdPrefix, action)}
                 label={label}
-                isDestructive={action === 'void' || action === 'delete_draft'}
+                isDestructive={isDestructiveAction(action)}
                 isDisabled={actions.isDisabled(action)}
                 onSelect={select}
             />
@@ -55,6 +59,8 @@ interface DocumentRowMenuProps {
     // The list area's test-id prefix (`<prefix>-row-menu-<id>`, `<prefix>-row-action-…`).
     testIdPrefix: string
     canWrite: boolean
+    // A Books admin: a purchase order's menu adds Close.
+    isAdmin: boolean
     actions: Pick<DocumentRowActions, 'run' | 'isDisabled'>
 }
 
@@ -65,10 +71,16 @@ interface DocumentRowMenuProps {
  * only while it is open, because core Sheet keeps its content in the page while it slides
  * out. A press on the button or an item never opens the row.
  */
-export function DocumentRowMenu({ row, testIdPrefix, canWrite, actions }: DocumentRowMenuProps) {
+export function DocumentRowMenu({
+    row,
+    testIdPrefix,
+    canWrite,
+    isAdmin,
+    actions,
+}: DocumentRowMenuProps) {
     const color = useThemeColor('muted-foreground')
     const { isOpen, setOpen } = useRowMenuOpen(row.id)
-    const items = isOpen ? listRowMenuItems(row, canWrite) : []
+    const items = isOpen ? listRowMenuItems(row, canWrite, isAdmin) : []
     const title = `${kindLabel(row.kind)} ${row.number}`.trim()
     // An element, not a component: the menu clones it with its press handler and ref.
     const trigger = (

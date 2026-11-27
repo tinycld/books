@@ -4,7 +4,8 @@ import type { VendorTransactionFilter } from '../lib/vendor-transactions'
 import { useDocumentList } from './useDocumentList'
 
 /**
- * One vendor's bills, expenses, bill payments, vendor credits and vendor refunds, newest
+ * One vendor's bills, purchase orders, expenses, bill payments, vendor credits and vendor
+ * refunds, newest
  * first, `n` at a time (vendor pages §3.5), read through the lists' `useDocumentList` with
  * the vendor fixed (`vendorTransactionsTab`): a filter other than `all` runs only its
  * kind's query, a void original that a correction replaced is left out, a vendor credit

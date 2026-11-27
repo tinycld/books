@@ -193,8 +193,8 @@ describe('registries', () => {
         })
     })
 
-    // Purchase order spec §2: "Purchase order" after "Vendor" and before "Bill". It takes
-    // no vendor until it joins the purchase lists (checkpoint 5).
+    // Purchase order spec §2: "Purchase order" after "Vendor" and before "Bill", taking a
+    // vendor so the vendor page's New transaction menu lists it (§3.9).
     it('NEW_ACTIONS has an available Purchase order action in the vendors column at books/purchase-orders/new', () => {
         expect(NEW_ACTIONS.find(a => a.id === 'purchase_order')).toEqual({
             id: 'purchase_order',
@@ -202,6 +202,7 @@ describe('registries', () => {
             href: 'books/purchase-orders/new',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -337,8 +338,9 @@ describe('registries', () => {
 
     // Vendor pages §3.3: the vendor page's New transaction menu lists the actions that
     // take a vendor.
-    it('flags exactly bill, pay_bills, expense, vendor_credit and vendor_refund as taking a vendor', () => {
+    it('flags exactly purchase_order, bill, pay_bills, expense, vendor_credit and vendor_refund as taking a vendor', () => {
         expect(NEW_ACTIONS.filter(a => a.takesVendor).map(a => a.id)).toEqual([
+            'purchase_order',
             'bill',
             'pay_bills',
             'expense',

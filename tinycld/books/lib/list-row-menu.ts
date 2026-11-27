@@ -38,9 +38,14 @@ export function listRowMenuLabel(row: DocumentListRow, action: ListRowAction): s
     return ROW_MENU_LABELS[action]
 }
 
-export function listRowMenuItems(row: DocumentListRow, canWrite: boolean): ListRowAction[] {
+// `isAdmin` (a Books admin) is read by a purchase order's Close only.
+export function listRowMenuItems(
+    row: DocumentListRow,
+    canWrite: boolean,
+    isAdmin = false
+): ListRowAction[] {
     if (isSalesKind(row.kind)) return documentRowMenuItems(row, canWrite)
-    return purchaseRowMenuItems(row, canWrite)
+    return purchaseRowMenuItems(row, canWrite, isAdmin)
 }
 
 // The route a navigating action pushes (without the org prefix); null for the actions that

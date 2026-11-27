@@ -38,7 +38,9 @@ import { REFUND_CREDIT_ACCOUNT } from './vendor-refund-helpers'
 // menu's items and their hrefs are pinned by tests/transaction-actions.test.ts.
 
 const BALANCES_URL = '**/api/collections/books_party_balances/records**'
+// Purchase order spec §3.9: the New transaction menu gains Purchase order, first.
 const MENU_ITEMS = [
+    'vendor-new-purchase-order',
     'vendor-new-bill',
     'vendor-new-pay-bills',
     'vendor-new-expense',
@@ -287,6 +289,9 @@ test.describe('vendor-pages: vendor balance', () => {
         await expect(notesInput).toBeFocused()
         await page.keyboard.press('Alt+n')
         await expect.poll(() => menuItemIds(page)).toEqual(MENU_ITEMS)
+        // The first item, Purchase order, has the focus; ↓ moves it to Bill.
+        await expect(page.getByTestId('vendor-new-purchase-order')).toBeFocused()
+        await page.keyboard.press('ArrowDown')
         await expect(page.getByTestId('vendor-new-bill')).toBeFocused()
         await page.keyboard.press('Enter')
 
@@ -331,6 +336,7 @@ test.describe('vendor-pages: vendor balance', () => {
 
         // Every other item opens its route for this vendor; Back returns to the page.
         for (const [item, route] of [
+            ['vendor-new-purchase-order', 'purchase-orders/new'],
             ['vendor-new-pay-bills', 'pay-bills'],
             ['vendor-new-expense', 'expenses/new'],
             ['vendor-new-vendor-credit', 'vendor-credits/new'],
@@ -363,7 +369,7 @@ test.describe('vendor-pages: vendor balance', () => {
         await expect.poll(() => stacked(open, newTransaction)).toBe(true)
         await expect.poll(() => widthOf(newTransaction)).toBeGreaterThan(300)
 
-        // The menu is a bottom sheet titled "New transaction" with the five items.
+        // The menu is a bottom sheet titled "New transaction" with the six items.
         await newTransaction.click()
         const sheet = page
             .locator('div')

@@ -89,6 +89,15 @@ describe('searchTarget', () => {
         })
     })
 
+    // Purchase order spec §3.9: a purchase order hit (kind purchase_order) opens the order.
+    it('routes a purchase order hit to the purchase order screen', () => {
+        expect(searchTarget('purchase_order:abc')).toEqual({
+            path: 'books/purchase-orders/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('purchase_order:')).toBeNull()
+    })
+
     it('routes a bill hit to the bill screen', () => {
         expect(searchTarget('bill:abc')).toEqual({
             path: 'books/bills/[id]',

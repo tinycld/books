@@ -91,14 +91,13 @@ export const NEW_ACTIONS: NewAction[] = [
         column: 'vendors',
         available: true,
     },
-    // No `takesVendor` yet: lib/purchase-lists.ts `kindOfAction` reads every action that
-    // takes a vendor as a purchase list kind, and the order joins the purchase lists later.
     {
         id: 'purchase_order',
         label: 'Purchase order',
         href: 'books/purchase-orders/new',
         column: 'vendors',
         available: true,
+        takesVendor: true,
     },
     {
         id: 'bill',

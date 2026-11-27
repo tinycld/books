@@ -2,7 +2,8 @@
 // actions the document's read view offers for its status and the user's access, in the
 // read view's order and with its labels, never Edit. A draft opens in its form, so its
 // menu holds Open and, for a writer, Delete draft. View journal entry shows only when the
-// document has an entry. Pure, so each rule is unit-tested.
+// document has an entry. A purchase order's menu is its own (purchase order spec §3.9,
+// `orderRowMenuItems`). Pure, so each rule is unit-tested.
 
 import { billPaymentReadActions } from './bill-payment-read-actions'
 import {
@@ -13,33 +14,51 @@ import {
     payBillOffered,
     refundOffered,
 } from './document-actions'
+import { type OrderStatus, orderReadActions } from './document-lifecycle'
 import { type DocumentListRow, isSalesKind, listDocumentHref } from './document-list'
-import { documentNewHref } from './document-routes'
+import { documentEditPath, documentNewHref } from './document-routes'
 import { ROW_MENU_LABELS } from './document-row-menu'
 import { PAY_BILLS_MESSAGES } from './pay-bills-texts'
 import { paymentReadActions } from './payment-read-actions'
-import { BILL_KIND, EXPENSE_KIND, VENDOR_CREDIT_KIND } from './sales-document-kinds'
+import {
+    BILL_KIND,
+    EXPENSE_KIND,
+    PURCHASE_ORDER_KIND,
+    VENDOR_CREDIT_KIND,
+} from './sales-document-kinds'
 import { VENDOR_REFUND_FLOW } from './vendor-refund-flow'
 import type { VendorTransactionKind } from './vendor-transactions'
 
 export type PurchaseRowMenuAction =
     | 'open'
+    | 'copy_to_bill'
+    | 'edit'
+    | 'send'
     | 'pay_bill'
     | 'apply_credit'
     | 'record_refund'
     | 'void'
+    | 'pdf'
     | 'copy'
+    | 'close'
     | 'entry'
+    | 'delete'
     | 'delete_draft'
 
 export const PURCHASE_ROW_MENU_LABELS: Record<PurchaseRowMenuAction, string> = {
     open: ROW_MENU_LABELS.open,
+    copy_to_bill: DOCUMENT_READ_LABELS.copy_to_bill,
+    edit: DOCUMENT_READ_LABELS.edit,
+    send: DOCUMENT_READ_LABELS.send,
     pay_bill: DOCUMENT_READ_LABELS.pay_bill,
     apply_credit: DOCUMENT_READ_LABELS.apply_credit,
     record_refund: DOCUMENT_READ_LABELS.record_refund,
     void: DOCUMENT_READ_LABELS.void,
+    pdf: DOCUMENT_READ_LABELS.pdf,
     copy: DOCUMENT_READ_LABELS.copy,
+    close: DOCUMENT_READ_LABELS.close,
     entry: DOCUMENT_READ_LABELS.entry,
+    delete: DOCUMENT_READ_LABELS.delete,
     delete_draft: ROW_MENU_LABELS.delete_draft,
 }
 
@@ -82,7 +101,7 @@ function isPurchaseRowMenuAction(
 
 // The read view's actions of a stored purchase row, as that kind's read view picks them.
 function readActionsOf(
-    kind: VendorTransactionKind,
+    kind: Exclude<VendorTransactionKind, 'purchase_order'>,
     row: DocumentListRow,
     status: StoredStatus,
     canWrite: boolean
@@ -99,12 +118,56 @@ function readActionsOf(
     return documentReadActions(status, canWrite, DOCUMENT_KINDS[kind].features, extra)
 }
 
+// A purchase order's menu, in the spec's order (§3.9 "Row menu"): the actions the read
+// view offers (`orderReadActions`), with Copy to bill while the order's stored open amount
+// is above zero and Delete only when no bill names the order (the server refuses the
+// delete of one that a bill names). No Reopen: it stays on the read view.
+const ORDER_ROW_MENU: readonly Extract<PurchaseRowMenuAction, DocumentReadAction>[] = [
+    'copy_to_bill',
+    'edit',
+    'send',
+    'pdf',
+    'copy',
+    'close',
+    'delete',
+]
+
+function orderStatusOf(text: string): OrderStatus | null {
+    if (text === 'open' || text === 'closed') return text
+    return null
+}
+
+function orderRowMenuItems(
+    row: DocumentListRow,
+    canWrite: boolean,
+    isAdmin: boolean
+): PurchaseRowMenuAction[] {
+    const status = orderStatusOf(row.recordStatus)
+    if (status === null) return ['open']
+    const offered = orderReadActions({
+        status,
+        // Only Reopen reads the reason, and the row menu has none.
+        closedReason: '',
+        canWrite,
+        isAdmin,
+        // A line is open by its quantities, not its amount: a rate-0 product line is open
+        // with an open amount of 0 (`isOrderLineOpen`, counted into `openLines`).
+        hasOpenLine: (row.openLines ?? 0) > 0,
+    })
+    const isShown = (action: (typeof ORDER_ROW_MENU)[number]) =>
+        offered.includes(action) && (action !== 'delete' || row.hasBills === false)
+    return ['open', ...ORDER_ROW_MENU.filter(isShown)]
+}
+
+// `isAdmin` (a Books admin, `useBooksAccess`) is read by a purchase order's Close only.
 export function purchaseRowMenuItems(
     row: DocumentListRow,
-    canWrite: boolean
+    canWrite: boolean,
+    isAdmin = false
 ): PurchaseRowMenuAction[] {
     const { kind } = row
     if (isSalesKind(kind)) return ['open']
+    if (kind === 'purchase_order') return orderRowMenuItems(row, canWrite, isAdmin)
     if (row.recordStatus === 'draft') {
         const canDelete = canWrite && kind !== 'bill_payment'
         return canDelete ? ['open', 'delete_draft'] : ['open']
@@ -132,17 +195,30 @@ export function purchaseRowActionHref(
             return `books/pay-bills?bill=${row.id}`
         case 'record_refund':
             return `books/vendor-refunds/new?vendor=${row.partyId}&credit=${row.id}`
+        case 'edit':
+            return kind === 'purchase_order' ? documentEditPath(PURCHASE_ORDER_KIND, row.key) : null
         case 'copy':
-            return isDocumentKind(kind)
-                ? documentNewHref(DOCUMENT_KINDS[kind], { copy: row.id })
-                : null
+            return copyHref(kind, row.id)
         case 'entry':
             return `books/entries/${row.entry}`
+        // Copy to bill opens the order with its dialog, which the row actions run themselves
+        // (as Apply to bills); Send…, Download PDF, Close and Delete stay on the list.
+        case 'copy_to_bill':
+        case 'send':
+        case 'pdf':
+        case 'close':
+        case 'delete':
         case 'apply_credit':
         case 'void':
         case 'delete_draft':
             return null
     }
+}
+
+function copyHref(kind: VendorTransactionKind, id: string): string | null {
+    if (kind === 'purchase_order') return documentNewHref(PURCHASE_ORDER_KIND, { copy: id })
+    if (isDocumentKind(kind)) return documentNewHref(DOCUMENT_KINDS[kind], { copy: id })
+    return null
 }
 
 // The Void dialog's words for a purchase kind, the ones that kind's read view shows.
@@ -162,6 +238,8 @@ export function purchaseVoidTexts(kind: VendorTransactionKind): {
         const { texts } = VENDOR_REFUND_FLOW
         return { body: texts.voidBody, confirmLabel: texts.voidConfirm, noun: texts.voidNoun }
     }
+    // A purchase order never posts, so neither its menu nor Void offers a void.
+    if (kind === 'purchase_order') throw new Error('A purchase order is never voided.')
     const doc = DOCUMENT_KINDS[kind]
     const noun = doc.noun.toLowerCase()
     return { body: doc.messages.voidBody, confirmLabel: `Void ${noun}`, noun }

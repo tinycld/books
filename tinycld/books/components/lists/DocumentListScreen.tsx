@@ -7,7 +7,9 @@ import {
 } from '../../hooks/useDocumentListScreen'
 import { useListShortcuts } from '../../hooks/useListShortcuts'
 import type { ListLayout } from '../../lib/detail-surface'
+import { batchActionsOf } from '../../lib/document-batch'
 import { type DocumentListRow, type DocumentListTab, kindLabel } from '../../lib/document-list'
+import { isSendKind } from '../../lib/document-send'
 import { areaOf, type ListArea } from '../../lib/list-areas'
 import { ListBanner } from '../ListBanner'
 import { SelectBox } from '../SelectBox'
@@ -35,7 +37,7 @@ interface SearchRefProp {
 // A row's or card's lead and trail cells: the tick box (a writer, in the full list) and
 // the "More actions" menu (in the full list); undefined where none draws.
 function rowSlots(screen: DocumentListScreenState, area: ListArea) {
-    const { controls, selection, rowActions, canWrite } = screen
+    const { controls, selection, rowActions, canWrite, isAdmin } = screen
     const renderTick = (row: DocumentListRow) => {
         const toggle = () => selection.toggle(row.id)
         const label = `Select ${kindLabel(row.kind)} ${row.number}`.trim()
@@ -54,6 +56,7 @@ function rowSlots(screen: DocumentListScreenState, area: ListArea) {
             row={row}
             testIdPrefix={area.testIdPrefix}
             canWrite={canWrite}
+            isAdmin={isAdmin}
             actions={rowActions}
         />
     )
@@ -153,14 +156,17 @@ function Banner({ screen, area }: { screen: DocumentListScreenState; area: ListA
 function FullList({ tab, area, screen, searchRef }: ListBodyProps & SearchRefProp) {
     const { list } = screen
     const isPhone = useBreakpoint() === 'mobile'
+    const batchActions = batchActionsOf(tab)
     const batch = (
         <DocumentBatchActions
             isVisible={screen.controls.showBatch}
             isCards={screen.drawsCards}
             testIdPrefix={area.testIdPrefix}
+            actions={batchActions}
             selection={screen.selection}
             batch={screen.batch}
             batchSend={screen.batchSend}
+            batchPdf={screen.batchPdf}
         />
     )
     const sendBanner = screen.batchSend.banner
@@ -240,7 +246,9 @@ export function DocumentListScreen({ tab, openId, layout, isCovered }: DocumentL
     const selection = isBeside ? null : screen.selection
     const area = areaOf(tab)
     useListShortcuts({ screen, selection, area, isCovered, isBeside, searchRef })
-    const hasSend = screen.canWrite && area.key === 'sales'
+    // A writer's list of a sent-able kind (the sales lists, Purchase orders, All purchases):
+    // the row menu's Send… opens its dialog over the list.
+    const hasSend = screen.canWrite && tab.kinds.some(isSendKind)
     return (
         <>
             <ListOfLayout

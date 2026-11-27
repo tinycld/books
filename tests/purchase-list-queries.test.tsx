@@ -137,6 +137,53 @@ function vendorRefund(over: Doc & { amount?: number; reference_no?: string; memo
     return { reference_no: '', memo: `memo ${over.id}`, amount: 1_500, ...head(over), ...over }
 }
 
+// A purchase order is open or closed, never a draft or void, and has no entry.
+function purchaseOrder(over: {
+    id: string
+    vendor?: string
+    status?: 'open' | 'closed'
+    total?: number
+    open_amount?: number
+}) {
+    const number = String(++next)
+    const total = over.total ?? 8_000
+    return {
+        vendor: '',
+        status: 'open' as const,
+        number,
+        sequence: Number(number),
+        date: '2026-10-10',
+        currency: 'USD',
+        total,
+        open_amount: (over.status ?? 'open') === 'open' ? total : 0,
+        memo: `memo ${over.id}`,
+        email: '',
+        created: stamp(),
+        ...over,
+    }
+}
+
+function orderLine(order: string, position: number, of: { received?: number; billed?: number }) {
+    return {
+        id: `ol${position}${order.slice(3)}`,
+        purchase_order: order,
+        kind: 'account',
+        account: ACCOUNT.id,
+        product: '',
+        description: '',
+        quantity: 0,
+        rate: 0,
+        amount: 8_000,
+        received: of.received ?? 0,
+        billed: of.billed ?? 0,
+        open_quantity: 0,
+        open_amount: 8_000 - (of.billed ?? 0),
+        position,
+        created: '',
+        updated: '',
+    }
+}
+
 function line(
     parentField: string,
     parent: string,
@@ -168,6 +215,8 @@ type Data = {
     billLines?: ReturnType<typeof line>[]
     expenseLines?: ReturnType<typeof line>[]
     vendorCreditLines?: ReturnType<typeof line>[]
+    purchaseOrders?: ReturnType<typeof purchaseOrder>[]
+    purchaseOrderLines?: ReturnType<typeof orderLine>[]
     invoices?: { id: string }[]
     refuseVendors?: boolean
     refuseBills?: boolean
@@ -193,6 +242,14 @@ function seedList(data: Data = {}) {
         books_vendor_credit_lines: heldOnDemandStore(
             'books_vendor_credit_lines',
             data.vendorCreditLines ?? []
+        ),
+        books_purchase_orders: heldOnDemandStore(
+            'books_purchase_orders',
+            data.purchaseOrders ?? []
+        ),
+        books_purchase_order_lines: heldOnDemandStore(
+            'books_purchase_order_lines',
+            data.purchaseOrderLines ?? []
         ),
         books_vendors: heldOnDemandStore('books_vendors', VENDORS, {
             refuseFirstLoad: data.refuseVendors,
@@ -341,6 +398,31 @@ describe('useDocumentList on All purchases: rows and the listed rule', () => {
         expect(ids).toContain('plreplacedfix01')
         expect(ids).toContain('plplainvoid0001')
     })
+
+    it('lists purchase orders with an unsigned total and the Open, Partly received and Closed badges', async () => {
+        seedList({
+            purchaseOrders: [
+                purchaseOrder({ id: 'plpoopen0000001', vendor: VENDOR_A, total: 8_000 }),
+                purchaseOrder({ id: 'plpopartly00001', total: 8_000 }),
+                purchaseOrder({ id: 'plpoclosed00001', status: 'closed', total: 8_000 }),
+            ],
+            purchaseOrderLines: [orderLine('plpopartly00001', 0, { billed: 3_000 })],
+        })
+        const hook = await readyRows({ tab: ALL })
+        await waitFor(() =>
+            expect(rowOf(hook.result.current.rows, 'plpopartly00001')?.status.label).toBe(
+                'Partly received'
+            )
+        )
+        const rows = hook.result.current.rows
+        const open = rowOf(rows, 'plpoopen0000001')
+        expect(open?.kind).toBe('purchase_order')
+        expect(open?.total).toBe(8_000)
+        expect(open?.partyName).toBe('Acme Paper Supply')
+        expect(open?.status.label).toBe('Open')
+        expect(rowOf(rows, 'plpoclosed00001')?.status.label).toBe('Closed')
+        expect(rowOf(rows, 'plpoclosed00001')?.total).toBe(8_000)
+    })
 })
 
 describe('useDocumentList: the category of a purchase row', () => {
@@ -455,8 +537,15 @@ describe('useDocumentList: the All purchases chips (spec §3 chip table)', () =>
             vendorRefund({ id: 'plchvrdraft0001', status: 'draft' }),
             vendorRefund({ id: 'plchvrvoid00001', status: 'void' }),
         ],
+        purchaseOrders: [
+            purchaseOrder({ id: 'plchpoopen00001' }),
+            purchaseOrder({ id: 'plchpopartly001' }),
+            purchaseOrder({ id: 'plchpoclosed001', status: 'closed' }),
+        ],
+        purchaseOrderLines: [orderLine('plchpopartly001', 0, { received: 1 })],
     }
     const STORE = {
+        purchase_order: 'books_purchase_orders',
         bill: 'books_bills',
         expense: 'books_expenses',
         bill_payment: 'books_bill_payments',
@@ -466,6 +555,7 @@ describe('useDocumentList: the All purchases chips (spec §3 chip table)', () =>
     // Per chip and kind, the ids the cell lists; null is a "none" cell.
     const TABLE: Record<string, Record<keyof typeof STORE, string[] | null>> = {
         open: {
+            purchase_order: ['plchpoopen00001', 'plchpopartly001'],
             bill: ['plchbillopen001', 'plchbillover001'],
             expense: null,
             bill_payment: null,
@@ -473,6 +563,7 @@ describe('useDocumentList: the All purchases chips (spec §3 chip table)', () =>
             vendor_refund: null,
         },
         overdue: {
+            purchase_order: null,
             bill: ['plchbillover001'],
             expense: null,
             bill_payment: null,
@@ -480,6 +571,7 @@ describe('useDocumentList: the All purchases chips (spec §3 chip table)', () =>
             vendor_refund: null,
         },
         closed: {
+            purchase_order: ['plchpoclosed001'],
             bill: ['plchbillpaid001'],
             expense: ['plchexpposted01'],
             bill_payment: ['plchbpposted001'],
@@ -487,6 +579,7 @@ describe('useDocumentList: the All purchases chips (spec §3 chip table)', () =>
             vendor_refund: ['plchvrposted001'],
         },
         draft: {
+            purchase_order: null,
             bill: ['plchbilldraft01'],
             expense: ['plchexpdraft001'],
             bill_payment: null,
@@ -494,6 +587,7 @@ describe('useDocumentList: the All purchases chips (spec §3 chip table)', () =>
             vendor_refund: ['plchvrdraft0001'],
         },
         void: {
+            purchase_order: null,
             bill: ['plchbillvoid001'],
             expense: ['plchexpvoid0001'],
             bill_payment: ['plchbpvoid00001'],

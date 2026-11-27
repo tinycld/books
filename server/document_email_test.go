@@ -99,7 +99,7 @@ func TestDocumentEmail_Cases(t *testing.T) {
 			}
 		})
 	}
-	for _, kind := range []string{"invoice", "estimate", "sales_receipt", "credit_memo", "refund_receipt"} {
+	for _, kind := range []string{"invoice", "estimate", "sales_receipt", "credit_memo", "refund_receipt", "purchase_order"} {
 		if !kinds[kind] {
 			t.Errorf("the vector file has no %s case", kind)
 		}

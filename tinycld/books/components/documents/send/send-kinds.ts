@@ -3,6 +3,7 @@ import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     INVOICE_KIND,
+    PURCHASE_ORDER_KIND,
     REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
@@ -16,6 +17,7 @@ export const SEND_DOCUMENT_KINDS: Record<SendKind, SalesDocumentKind> = {
     sales_receipt: SALES_RECEIPT_KIND,
     credit_memo: CREDIT_MEMO_KIND,
     refund_receipt: REFUND_RECEIPT_KIND,
+    purchase_order: PURCHASE_ORDER_KIND,
 }
 
 // "Send invoice 1004" (spec §3.2): the kind's noun and the number; the noun alone while

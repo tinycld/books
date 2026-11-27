@@ -24,11 +24,11 @@ import {
     refundReceiptOffered,
     writeOffOffered,
 } from '../lib/document-actions'
-import { orderReadActions, quoteReadActions } from '../lib/document-lifecycle'
+import { orderCloseBody, orderReadActions, quoteReadActions } from '../lib/document-lifecycle'
 import { documentEditPath, documentNewHref } from '../lib/document-routes'
 import { isSendKind, sendOffered } from '../lib/document-send'
 import { purchaseTabOf } from '../lib/purchase-lists'
-import { orderHasOpenLine } from '../lib/purchase-order-status'
+import { isOrderLineOpen, orderHasOpenLine } from '../lib/purchase-order-status'
 import { documentKey } from '../lib/record-key'
 import { payoutVoidBodyOf } from '../lib/refund-payout'
 import { writeRefusalText } from '../lib/refusal'
@@ -50,6 +50,7 @@ import { deleteDialogTexts, useDocumentDelete, useScreenHoldRelease } from './us
 import { useOpenDocument } from './useOpenDocument'
 import { useOpenFromReadView, useOpenInPlaceOfReadView } from './useOpenFromReadView'
 import { usePdfDownload } from './usePdfDownload'
+import { usePurchaseOrderStatus } from './usePurchaseOrderStatus'
 import { useUnappliedCreditMemos } from './useUnappliedCreditMemos'
 import { useVoidDocument } from './useVoidDocument'
 
@@ -64,7 +65,18 @@ type ReadRecord = Pick<
     | 'kindFields'
     | 'sequence'
     | 'replaced_by'
+    | 'currency'
+    | 'revision'
 >
+
+// A purchase order's Close body (orderCloseBody): its open lines and its open amount; ''
+// for any other record, which offers no Close.
+function closeBodyOf(record: ReadRecord): string {
+    const fields = record.kindFields
+    if (fields.kind !== 'purchase_order') return ''
+    const openLines = fields.lineReceipts.filter(isOrderLineOpen).length
+    return orderCloseBody(openLines, fields.open_amount, record.currency)
+}
 
 // The customer link's token of an invoice; '' for any other record, which offers no Copy
 // customer link on its read view (an estimate's is on its form).
@@ -291,6 +303,9 @@ export function useDocumentReadActions(
     // Close and Reopen are a Books admin's (spec §3.6); the access row is the one every Books
     // screen reads, so this serves it from the store.
     const { isAdmin } = useBooksAccess()
+    // Close asks first (the Close dialog, which the read view draws); Reopen has no confirm.
+    const [isCloseOpen, setCloseOpen] = useState(false)
+    const status = usePurchaseOrderStatus(() => setCloseOpen(false))
     // Delete (an order's More row): the confirm dialog, the hold of the record while the
     // delete runs, and All purchases after it (the record is gone; spec §3.6). A push, so the
     // browser's back reaches the deleted order's route, which says it does not exist.
@@ -310,9 +325,12 @@ export function useDocumentReadActions(
         ? { send: () => openSend({ kind: sendKind, id: record.id }, owner) }
         : {}
     // The actions this read view has a handler for; an offered action without one is not
-    // drawn (a purchase order's Close and Reopen come with their dialogs).
+    // drawn.
     const run: Partial<Record<DocumentReadAction, () => void>> = {
         ...sendRun,
+        // A purchase order's Close (its confirm, spec §3.6) and Reopen (no confirm).
+        close: () => setCloseOpen(true),
+        reopen: () => status.reopen(record.id),
         // The Copy to bill dialog over this read view (spec §3.7), which the read view mounts
         // with the same `owner`; its Create bill pushes the bill form, so Back returns here.
         copy_to_bill: () => copyToBill.open(owner),
@@ -437,5 +455,28 @@ export function useDocumentReadActions(
         errorMessage: deletion.errorMessage,
         ...deleteDialogTexts(doc, record.number),
     }
-    return { actions, voidDialog, deleteDialog }
+    // The Close confirm closes when Close stops being offered (the order closed, or the user
+    // lost admin or write access, while it was open), unless its own Close runs.
+    const isCloseOffered = actions.some(item => item.action === 'close')
+    const closeDialog = {
+        isVisible: isCloseOpen && (isCloseOffered || status.isClosing),
+        number: record.number,
+        body: closeBodyOf(record),
+        isPending: status.isClosing,
+        // The revision this read view shows: the server refuses the Close when the order
+        // changed after it (usePurchaseOrderStatus).
+        onConfirm: () => status.close({ id: record.id, revision: record.revision }),
+        onCancel: () => setCloseOpen(false),
+    }
+    // A list row's Copy to bill opens its dialog here only while this read view offers it
+    // (useCopyToBillStore `claim`).
+    const isCopyToBillOffered = actions.some(item => item.action === 'copy_to_bill')
+    return {
+        actions,
+        voidDialog,
+        deleteDialog,
+        closeDialog,
+        isReopening: status.isReopening,
+        isCopyToBillOffered,
+    }
 }

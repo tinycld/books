@@ -161,6 +161,7 @@ describe('listShortcutInput', () => {
             tabLabels: [
                 'All purchases',
                 'Bills',
+                'Purchase orders',
                 'Expenses',
                 'Bill payments',
                 'Vendor credits',
@@ -202,9 +203,10 @@ describe('listShortcuts per list area', () => {
             run: handlers(),
             isBeside: false,
         })
-        expect(TAB_KEYS.map(key => byKeys(shortcuts, key).description)).toEqual([
+        expect([...TAB_KEYS, '7'].map(key => byKeys(shortcuts, key).description)).toEqual([
             'All purchases',
             'Bills',
+            'Purchase orders',
             'Expenses',
             'Bill payments',
             'Vendor credits',

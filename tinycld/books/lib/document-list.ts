@@ -89,11 +89,12 @@ export type ListColumnKey =
     | 'due'
     | 'expires'
     | 'balance'
+    | 'open'
     | 'amount'
     | 'total'
     | 'status'
 
-export type ListSortKey = 'date' | 'number' | 'amount' | 'due' | 'expires' | 'balance'
+export type ListSortKey = 'date' | 'number' | 'amount' | 'due' | 'expires' | 'balance' | 'open'
 
 export type ListSort = { key: ListSortKey; isAscending: boolean }
 
@@ -189,6 +190,8 @@ export const LIST_COLUMNS: Record<ListColumnKey, ListColumn> = {
     due: { label: 'Due date', minWidth: 108, grow: 1.1, sortKey: 'due' },
     expires: { label: 'Expires', minWidth: 108, grow: 1.1, sortKey: 'expires' },
     balance: { label: 'Balance', minWidth: 116, grow: 1.2, align: 'right', sortKey: 'balance' },
+    // A purchase order's open amount (purchase order spec §3.9).
+    open: { label: 'Open', minWidth: 100, grow: 1.1, align: 'right', sortKey: 'open' },
     amount: { label: 'Amount', minWidth: 116, grow: 1.2, align: 'right', sortKey: 'amount' },
     total: { label: 'Total', minWidth: 116, grow: 1.2, align: 'right', sortKey: 'amount' },
     status: { label: 'Status', minWidth: 128, grow: 0 },
@@ -342,6 +345,11 @@ const KIND_TAB_RULES: Record<ListKind, Record<string, ChipRule>> = {
         draft: isStatus('draft'),
         void: isStatus('void'),
     },
+    // Open holds the partly received orders too: both are stored `open`.
+    purchase_order: {
+        open: isStatus('open'),
+        closed: isStatus('closed'),
+    },
     expense: {
         paid: isPosted,
         draft: isStatus('draft'),
@@ -375,6 +383,7 @@ const MIXED_TAB_RULES: Record<string, Partial<Record<ListKind, ChipRule>>> = {
         payment: hasCredit,
         credit_memo: hasBalance,
         bill: hasBalance,
+        purchase_order: isStatus('open'),
         vendor_credit: hasBalance,
     },
     overdue: { invoice: isOverdue, bill: isOverdue },
@@ -387,6 +396,7 @@ const MIXED_TAB_RULES: Record<string, Partial<Record<ListKind, ChipRule>>> = {
         credit_memo: isSettled,
         refund_receipt: isPosted,
         bill: isSettled,
+        purchase_order: isStatus('closed'),
         expense: isPosted,
         bill_payment: isPosted,
         vendor_credit: isSettled,
@@ -529,6 +539,7 @@ const SORT_FIELDS = {
         due: 'due_date',
         balance: 'balance',
     },
+    purchase_order: { date: 'date', number: 'sequence', amount: 'total', open: 'open_amount' },
     expense: { date: 'date', number: 'sequence', amount: 'total' },
     bill_payment: { date: 'date', number: 'sequence', amount: 'total' },
     vendor_credit: { date: 'date', number: 'sequence', amount: 'total', balance: 'balance' },
@@ -546,6 +557,7 @@ export function sortField(kind: 'credit_memo', key: ListSortKey): SortFieldOf<'c
 export function sortField(kind: 'refund_receipt', key: ListSortKey): SortFieldOf<'refund_receipt'>
 export function sortField(kind: 'write_off', key: ListSortKey): SortFieldOf<'write_off'>
 export function sortField(kind: 'bill', key: ListSortKey): SortFieldOf<'bill'>
+export function sortField(kind: 'purchase_order', key: ListSortKey): SortFieldOf<'purchase_order'>
 export function sortField(kind: 'expense', key: ListSortKey): SortFieldOf<'expense'>
 export function sortField(kind: 'bill_payment', key: ListSortKey): SortFieldOf<'bill_payment'>
 export function sortField(kind: 'vendor_credit', key: ListSortKey): SortFieldOf<'vendor_credit'>
@@ -596,8 +608,8 @@ export type DocumentListRow = PartyTransactionRow<ListKind> & {
     reference: string
     // An estimate's expiration date; '' for the other kinds.
     expires: string
-    // The stored open balance of an invoice, credit memo, bill or vendor credit; 0 for the
-    // other kinds.
+    // The stored open balance of an invoice, credit memo, bill or vendor credit, and a
+    // purchase order's stored `open_amount` (its Open column); 0 for the other kinds.
     balance: number
     // The posted document's journal entry; '' for a draft and an estimate.
     entry: string
@@ -613,8 +625,19 @@ export type DocumentListRow = PartyTransactionRow<ListKind> & {
     category: PurchaseCategory
     // The document's own email address, where a batch send goes (email-share plan decision
     // 7): an invoice's, estimate's, sales receipt's, credit memo's or refund receipt's
-    // `email`; '' when it is empty and for a kind with no email field.
+    // `email`; '' when it is empty and for a kind with no email field. A purchase order's
+    // `email` too.
     email: string
+    // Whether a bill names the purchase order (its row menu then has no Delete: the server
+    // refuses it). Only a purchase order's row has it; absent reads as unknown, and the
+    // menu then offers no Delete.
+    hasBills?: boolean
+    // How many lines of the purchase order are still open (`isOrderLineOpen`), for its
+    // Close dialog's body; only a purchase order's row has it.
+    openLines?: number
+    // The purchase order's stored `revision`, which its Close states it saw
+    // (usePurchaseOrderStatus); only a purchase order's row has it.
+    revision?: number
 }
 
 function sortValue(row: DocumentListRow, key: ListSortKey): string | number {
@@ -622,7 +645,7 @@ function sortValue(row: DocumentListRow, key: ListSortKey): string | number {
     if (key === 'amount') return row.total
     if (key === 'due') return row.dueDate
     if (key === 'expires') return row.expires
-    if (key === 'balance') return row.balance
+    if (key === 'balance' || key === 'open') return row.balance
     return row.date
 }
 
