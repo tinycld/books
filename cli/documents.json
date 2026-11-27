@@ -1167,7 +1167,7 @@
                     "parent": "adjustment",
                     "sort": "position,id",
                     "max": 500,
-                    "omit": ["adjustment", "position", "bin"],
+                    "omit": ["adjustment", "position", "bin", "posted_value"],
                     "fields": [
                         { "name": "product", "type": "id", "ref": "products", "required": true, "help": "the Inventory item" },
                         { "name": "quantity", "type": "number", "help": "the change of the quantity, with at most 2 decimals: above 0 into stock, below 0 out of stock, 0 for a change of value only" },

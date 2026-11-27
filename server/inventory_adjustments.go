@@ -40,6 +40,12 @@ const (
 // itself (txmarks.go): the guards let those writes through.
 const markSystemAdjustment = "books.adjustment.system"
 
+// markAdjustmentPostedValues marks an adjustment while its post writes the
+// posted_value of its lines (writeLinePostedValues): the line guard lets those
+// writes through. It is not markSystemAdjustment, whose clear would end the
+// mark of newSystemAdjustment before it saves the adjustment.
+const markAdjustmentPostedValues = "books.adjustment.posted_values"
+
 // Refusal texts of an adjustment's post. The post names a line's fault by the
 // line's place, from 1 ("Line 2: Enter a quantity change, ...").
 const (
@@ -281,9 +287,45 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 	if err := numberPostedMoves(tx, own, inventoryAdjustmentsCollection, r.Id, r.GetString("number")); err != nil {
 		return err
 	}
+	if err := writeLinePostedValues(tx, r, lines, own); err != nil {
+		return err
+	}
 	r.Set("value_change", value)
 	r.Set("posted_at", now)
 	r.Set("sort_key", salesDocSortKey(r))
+	return nil
+}
+
+// writeLinePostedValues writes each line's posted_value at the post of r: the
+// sum of the values of the line's own stock moves (own), or for a re-cost,
+// whose lines have no move, the line's value, the drift Books posts for it.
+// The read view shows it for a posted and a void line, so it stays when a void
+// deletes the moves and when a later re-cost changes their values. Each line
+// whose value changes is saved as a record, so the client gets it by
+// realtime; a line that stays 0 is not written. The line guard lets the write
+// through under markAdjustmentPostedValues and refuses posted_value from
+// anyone else.
+func writeLinePostedValues(tx core.App, r *core.Record, lines, own []*core.Record) error {
+	posted := map[string]int{}
+	if r.GetString("kind") == adjustmentKindRecost {
+		for _, l := range lines {
+			posted[l.Id] = l.GetInt("value")
+		}
+	} else {
+		for _, m := range own {
+			posted[m.GetString("line")] += m.GetInt("value")
+		}
+	}
+	defer setTxMark(tx, markAdjustmentPostedValues, r.Id)()
+	for _, l := range lines {
+		if l.GetInt("posted_value") == posted[l.Id] {
+			continue
+		}
+		l.Set("posted_value", posted[l.Id])
+		if err := tx.SaveNoValidate(l); err != nil {
+			return fmt.Errorf("books: write the posted value of an adjustment line: %w", err)
+		}
+	}
 	return nil
 }
 

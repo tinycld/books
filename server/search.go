@@ -133,11 +133,16 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
+	adjustments, adjustmentTotal, err := searchSalesDocs(ctx, app, inventoryAdjustmentSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
 	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, creditMemos, refundReceipts,
-		estimates, bills, expenses, vendorCredits, payments, billPayments, vendorRefunds, writeOffs, deposits, purchaseOrders)
+		estimates, bills, expenses, vendorCredits, payments, billPayments, vendorRefunds, writeOffs, deposits, purchaseOrders,
+		adjustments)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
 		creditMemoTotal + refundReceiptTotal + estimateTotal + billTotal + expenseTotal + vendorCreditTotal + paymentTotal +
-		billPaymentTotal + vendorRefundTotal + writeOffTotal + depositTotal + purchaseOrderTotal
+		billPaymentTotal + vendorRefundTotal + writeOffTotal + depositTotal + purchaseOrderTotal + adjustmentTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -405,7 +410,9 @@ type salesDocHit struct {
 // in the title; a kind with partyIsAccount names an account instead, built in
 // Go by accountNumberName from the account's number and name. A kind with no
 // partyIdx matches its own index alone: its party names it in the title only.
-// A kind with draftNamesNoParty titles a draft with its noun alone.
+// A kind with no partyTable has no party: no join, and its title is its noun
+// and number alone. A kind with draftNamesNoParty titles a draft with its noun
+// alone.
 type salesDocSearch struct {
 	table, index, docType, kind      string
 	partyField, partyTable, partyIdx string
@@ -426,6 +433,9 @@ func (s salesDocSearch) subtitleColumn() string {
 // partyColumns is the SELECT of the party's name parts: an account's number
 // and name, or a customer's or vendor's display name.
 func (s salesDocSearch) partyColumns() string {
+	if s.partyTable == "" {
+		return "'' AS party_name"
+	}
 	if s.partyIsAccount {
 		return "pa.number AS party_number, pa.name AS party_account_name"
 	}
@@ -569,6 +579,15 @@ var depositSearch = salesDocSearch{
 	partyIsAccount: true, draftNamesNoParty: true,
 }
 
+// inventoryAdjustmentSearch has no party: "Inventory adjustment IA-5" /
+// "Inventory adjustment IA-4 (void)" / "Draft inventory adjustment"
+// (inventory-adjust spec §3.5), drafts and the adjustments Books made
+// included. A word matches the adjustment's number and memo only.
+var inventoryAdjustmentSearch = salesDocSearch{
+	table: inventoryAdjustmentsCollection, index: inventoryAdjustmentsIndex,
+	docType: docTypeInventoryAdjustment, kind: "inventory_adjustment",
+}
+
 // salesDocTermMatch is true when one query word matches a document's own
 // index row (number, memo, message; a sales receipt's, a refund receipt's, an
 // expense's, a payment's, a bill payment's and a vendor refund's reference
@@ -616,9 +635,11 @@ func (s salesDocSearch) from(include, exclude []string) (string, dbx.Params) {
 	}
 	add("t", queryWords(include), false)
 	add("x", queryWords(exclude), true)
-	from := ` FROM ` + s.table + ` c LEFT JOIN ` + s.partyTable + ` pa ON pa.id = c.` + s.partyField +
-		` WHERE ` + strings.Join(conds, " AND ")
-	return from, params
+	from := ` FROM ` + s.table + ` c`
+	if s.partyTable != "" {
+		from += ` LEFT JOIN ` + s.partyTable + ` pa ON pa.id = c.` + s.partyField
+	}
+	return from + ` WHERE ` + strings.Join(conds, " AND "), params
 }
 
 // queryWords splits the query's parts into words, as the FTS match of the

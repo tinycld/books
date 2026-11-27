@@ -202,7 +202,7 @@ func documentKindRegistries(t *testing.T, docs []registryDocument) []kindRegistr
 		{
 			name:     "searchIndexes (search_index.go)",
 			has:      func(d registryDocument) bool { return indexed[d.Collection] },
-			excluded: map[string]string{"inventory_adjustment": adjustmentPending},
+			excluded: map[string]string{},
 		},
 		{
 			name:     "reportSources (report_sources.go), a source or a source part",
@@ -213,11 +213,10 @@ func documentKindRegistries(t *testing.T, docs []registryDocument) []kindRegistr
 			name: "entry_routes.json: the document an entry opens",
 			has:  func(d registryDocument) bool { return entryRoutes[d.key()] == d.Name },
 			excluded: map[string]string{
-				"journal":              entryIsDocument,
-				"transfer":             entryIsDocument,
-				"estimate":             neverPosts,
-				"purchase_order":       neverPosts,
-				"inventory_adjustment": adjustmentPending,
+				"journal":        entryIsDocument,
+				"transfer":       entryIsDocument,
+				"estimate":       neverPosts,
+				"purchase_order": neverPosts,
 			},
 		},
 		{

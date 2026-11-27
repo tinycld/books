@@ -617,10 +617,9 @@ export type AdjustmentRecord = Omit<BooksInventoryAdjustments, 'account' | 'sort
     has_entry: boolean
 }
 
-export type AdjustmentLineRecord = BooksInventoryAdjustmentLines & {
-    // What Books posted for the line (its stock move's value); 0 on a draft.
-    posted_value: number
-}
+// `posted_value` is what Books posted for the line (the sum of its stock moves' values),
+// written at the post; 0 on a draft.
+export type AdjustmentLineRecord = BooksInventoryAdjustmentLines
 
 type AdjustmentSeed = Pick<AdjustmentRecord, 'id' | 'status' | 'number' | 'date'> &
     Partial<AdjustmentRecord>

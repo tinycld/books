@@ -59,6 +59,7 @@ const RECORD_PATHS: Record<string, (id: string) => string> = {
     books_write_offs: id => `books/write-offs/${id}`,
     books_statements: id => `books/statements/${id}`,
     books_deposits: id => `books/deposits/${id}`,
+    books_inventory_adjustments: id => `books/inventory-adjustments/${id}`,
     books_reconciliations: id => `books/reconcile/${id}`,
 }
 

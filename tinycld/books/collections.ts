@@ -1152,8 +1152,9 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // The server writes a line's posted_value at the post (server/inventory_adjustments.go).
     const books_inventory_adjustment_lines = newCollection('books_inventory_adjustment_lines', {
-        omitOnInsert: ['created', 'updated'] as const,
+        omitOnInsert: ['created', 'updated', 'posted_value'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })

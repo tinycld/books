@@ -20,7 +20,8 @@ import (
 // shas below (same Revision, as for the Customer Balance pin); with the deposit
 // rows taken out of entryRoutes and entryTypeLabels the specs hash to the
 // values pinned before. The inventory-adjustment unit then added "Inventory
-// adjustment" to the entry type labels, which moves them again (same Revision).
+// adjustment" to the entry type labels and its route row, which moves them
+// again (same Revision).
 func TestSharedReportHelpersKeepOtherSpecs(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -28,9 +29,9 @@ func TestSharedReportHelpersKeepOtherSpecs(t *testing.T) {
 		want string
 	}{
 		{"Customer Balance", customerBalanceSpec(), customerBalanceSpecSHA256},
-		{"Vendor Balance", vendorBalanceSpec(), "f52f95804fe43978b579e697e39d79cd31a5d5188e1ee86812bdee46933e27b1"},
-		{"A/R Aging", arAgingSpec(), "28bc06fd8038e41835954f583a4b2f26c3973e5a144bf3f92163728d2fee20bd"},
-		{"A/P Aging", apAgingSpec(), "fb9cd1d0d49bf336a36d40140462941e54d0d173f59fccc79d5cba9e738aa5a0"},
+		{"Vendor Balance", vendorBalanceSpec(), "6f1efad0991e511d8da97bd650d7f7998fcaebba484ee9e998cd22034ea8a85f"},
+		{"A/R Aging", arAgingSpec(), "cca69d832778b6c1f8412d561be803e025716e35f76bde90f0935533738db00c"},
+		{"A/P Aging", apAgingSpec(), "d239ea47f81c659b11835d1db013b0a2a77e313aad98fe921c8990d0ce3fe2fb"},
 	} {
 		sum := sha256.Sum256(mustJSON(c.spec))
 		if got := hex.EncodeToString(sum[:]); got != c.want {

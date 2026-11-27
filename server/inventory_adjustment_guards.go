@@ -96,7 +96,26 @@ func registerInventoryAdjustmentGuards(app core.App) {
 		return e.Next()
 	})
 
-	bindSerializedGuard(app, inventoryAdjustmentLinesCollection, validateInventoryAdjustmentLine)
+	app.OnRecordCreate(inventoryAdjustmentLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		return serialized(e, func(tx core.App) error {
+			return validateInventoryAdjustmentLine(tx, nil, e.Record)
+		})
+	})
+	// The post's write of posted_value (writeLinePostedValues) runs inside the
+	// post's transaction and skips the read of the stored line: one statement
+	// for each line, not two (purchase_stock_cost_test.go).
+	app.OnRecordUpdate(inventoryAdjustmentLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		if lineWrittenByBooks(e.App, e.Record) {
+			return e.Next()
+		}
+		return serialized(e, func(tx core.App) error {
+			stored, err := tx.FindRecordById(inventoryAdjustmentLinesCollection, e.Record.Id)
+			if err != nil {
+				return err
+			}
+			return validateInventoryAdjustmentLine(tx, stored, e.Record)
+		})
+	})
 	app.OnRecordDelete(inventoryAdjustmentLinesCollection).BindFunc(func(e *core.RecordEvent) error {
 		return serialized(e, func(tx core.App) error {
 			// A draft's delete cascades its lines after the adjustment row is
@@ -279,18 +298,36 @@ func checkAdjustmentHeader(tx core.App, stored, r *core.Record) error {
 	return nil
 }
 
+// lineWrittenByBooks reports whether Books itself writes line r in tx: the
+// lines of an adjustment it makes (newSystemAdjustment), or the posted_value
+// of a post (writeLinePostedValues).
+func lineWrittenByBooks(tx core.App, r *core.Record) bool {
+	id := r.GetString("adjustment")
+	return hasTxMark(tx, markSystemAdjustment, id) || hasTxMark(tx, markAdjustmentPostedValues, id)
+}
+
 // validateInventoryAdjustmentLine guards a line a person writes: its
 // adjustment is a draft and stays its adjustment, its product is an Inventory
 // item, Books can cost its two numbers (adjustmentLineFault), and a bin it
-// names is active, on a line that changes the quantity. The post checks every
-// line again. A line Books writes itself passes.
+// names is active, on a line that changes the quantity. posted_value stays as
+// stored (0 on a create). The post checks every line again. A line Books writes
+// itself passes.
 func validateInventoryAdjustmentLine(tx core.App, stored, r *core.Record) error {
 	id := r.GetString("adjustment")
-	if hasTxMark(tx, markSystemAdjustment, id) {
+	if lineWrittenByBooks(tx, r) {
 		return nil
 	}
 	if stored != nil && stored.GetString("adjustment") != id {
 		return refuseField("adjustment", msgAdjustmentRowStays)
+	}
+	// The post writes posted_value (writeLinePostedValues); the collection
+	// rules refuse it in a person's request, this in a superuser's too.
+	var postedValue int
+	if stored != nil {
+		postedValue = stored.GetInt("posted_value")
+	}
+	if r.GetInt("posted_value") != postedValue {
+		return refuseField("posted_value", msgBooksKeepsValue)
 	}
 	adjustment, err := tx.FindRecordById(inventoryAdjustmentsCollection, id)
 	if errors.Is(err, sql.ErrNoRows) {

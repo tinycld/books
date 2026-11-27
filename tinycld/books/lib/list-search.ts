@@ -17,7 +17,9 @@ export const ID_ORDER = { direction: 'asc', stringSort: 'lexical' } as const
 // The pause in typing before a search runs, so the server gets one request per pause.
 export const SEARCH_DELAY_MS = 250
 
-export type ListFilters = { search: string; showInactive: boolean }
+// `view` names any other filter a list's query reads (the inventory adjustments' chips),
+// so a change of it is a new query too (list-state.ts keepLastSettled).
+export type ListFilters = { search: string; showInactive: boolean; view?: string }
 
 type TextColumn = Parameters<typeof ilike>[0]
 type Clause = ReturnType<typeof eq>

@@ -30,6 +30,7 @@ import { ListHeaderCell, ListHeaderRow, ListTable } from '../ListTable'
 import { RecordListFrame } from '../RecordListFrame'
 import { ShippedReportButton } from '../reports/ShippedReportButton'
 import { DeleteProductDialog } from './DeleteProductDialog'
+import { InventoryTabStrip } from './InventoryTabStrip'
 import { ProductCard } from './ProductCard'
 import { ProductRow } from './ProductRow'
 
@@ -161,6 +162,7 @@ export function ProductsList({ openId }: { openId: string }) {
             renderCards={renderCards}
             dialog={dialog}
             headerAction={salesButton}
+            tabs={<InventoryTabStrip selected="products" />}
         />
     )
 }

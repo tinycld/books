@@ -1,4 +1,5 @@
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { DocumentKindContext, useDocumentKind } from './document-kind-context'
@@ -12,14 +13,28 @@ interface LoadErrorPageProps {
     // The alert's test id; the Retry button's is `retryTestID`.
     testID: string
     retryTestID: string
+    // The back link of a screen with its own list (the inventory adjustments); the
+    // screen-stack back link (EntryBackLink) when undefined.
+    backLink?: ReactNode
+}
+
+function PageBackLink({ backLink }: { backLink: ReactNode | undefined }) {
+    if (backLink === undefined) return <EntryBackLink />
+    return <>{backLink}</>
 }
 
 // A failed read of a record screen with Retry, kind-free: a document screen and a page that
 // is no document kind (the write-off page) draw it with their own text and test ids.
-export function LoadErrorPage({ message, onRetry, testID, retryTestID }: LoadErrorPageProps) {
+export function LoadErrorPage({
+    message,
+    onRetry,
+    testID,
+    retryTestID,
+    backLink,
+}: LoadErrorPageProps) {
     return (
         <View className="flex-1 bg-background px-4 pt-2">
-            <EntryBackLink />
+            <PageBackLink backLink={backLink} />
             <View
                 testID={testID}
                 accessibilityRole="alert"

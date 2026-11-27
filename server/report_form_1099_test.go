@@ -2105,8 +2105,10 @@ func TestForm1099CSVOpensEveryBox(t *testing.T) {
 // checkpoint 3: until then it holds no sum. A later change of the filter, the
 // columns, the sort or the labels moves it. Checkpoint 4 (spec §11 Q21) moved
 // it once: the card mark and the doc type read the row's own copies
-// (fld("card_payment"), fld("doc_type")) in place of the entry's.
-const form1099SpecSHA256 = "ed243377e6f074f22c922c800190f7167221f98028741262e4b96dce52cbd644"
+// (fld("card_payment"), fld("doc_type")) in place of the entry's. The
+// inventory-adjust unit's `inventory_adjustment` route row moved it again (the
+// detail open path; same spec otherwise).
+const form1099SpecSHA256 = "e8806f8f9dcc85f7c1f911229b5b7ef046c9481179962331d9b209dddc161a69"
 
 func TestForm1099SpecSHA(t *testing.T) {
 	sum := sha256.Sum256(mustJSON(form1099Spec()))

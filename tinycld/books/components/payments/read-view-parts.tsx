@@ -1,7 +1,7 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { Pressable, Text, View } from 'react-native'
-import { stampText } from '../../lib/entry-display'
+import { formatDateTime } from '../../lib/entry-display'
 
 // The parts a payment read view (receive-payment §3.7, pay-bills §3.8) is drawn from.
 
@@ -49,10 +49,14 @@ export function Stamp({ text, testID }: { text: string; testID: string }) {
     )
 }
 
-/** "<Verb> by <name>, <date time>" (stampText); empty when stampText is empty. */
+/**
+ * "<Verb> by <name>, <date time>"; "<Verb> <date time>" when no person did it (an
+ * adjustment Books made), so the date never reads as the person. Empty with no time.
+ */
 export function stampOf(verb: string, userName: string | undefined, at: string): string {
-    const text = stampText(userName, at)
-    return text ? `${verb} by ${text}` : ''
+    const when = formatDateTime(at)
+    if (when === '') return ''
+    return userName ? `${verb} by ${userName}, ${when}` : `${verb} ${when}`
 }
 
 interface ReplacedByProps {

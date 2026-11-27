@@ -625,6 +625,17 @@ var tdDocumentPosters = map[string]func(t *testing.T) tdPosted{
 		d := de.postedDeposit(t, []*core.Record{de.undepositedItem(t, de.undeposited, depositItemDay, 5000, "Check one")})
 		return tdPosted{de.app, de.users.readOnly, d.GetString("entry"), de.checking, d.Id}
 	},
+	// Inventory-adjust spec §3.5: an adjustment's entry opens the adjustment.
+	"inventory_adjustment": func(t *testing.T) tdPosted {
+		se := newAdjustmentEnv(t)
+		registerBooksSources(t)
+		adj := se.draftAdjustment(t, "2026-07-01", se.stockIn(10, 1000))
+		if err := se.postAdjustment(adj.Id); err != nil {
+			t.Fatalf("post the adjustment: %v", err)
+		}
+		posted := reload(t, se.app, inventoryAdjustmentsCollection, adj.Id)
+		return tdPosted{se.app, se.users.readOnly, posted.GetString("entry"), se.asset, adj.Id}
+	},
 	// A bill payment posts only from its batch (bill_payments_test.go).
 	"bill_payment": func(t *testing.T) tdPosted {
 		bp := newBillPayEnv(t)

@@ -61,6 +61,26 @@ describe('history route', () => {
         )
     })
 
+    // Inventory-adjust spec §3.5: an adjustment's history is read from
+    // books_inventory_adjustments, and its Open path is the adjustment's read view.
+    it('maps inventory_adjustment to books_inventory_adjustments and opens the adjustment', () => {
+        expect(Object.entries(DOCUMENT_COLLECTIONS)).toContainEqual([
+            'inventory_adjustment',
+            'books_inventory_adjustments',
+        ])
+        const collection = Object.fromEntries(
+            Object.entries(DOCUMENT_COLLECTIONS)
+        ).inventory_adjustment
+        expect(historyHref(collection ?? '', 'iadjposted00012')).toBe(
+            'books/history/books_inventory_adjustments/iadjposted00012'
+        )
+        expect(
+            auditRecordHref('books_inventory_adjustments', 'iadjposted00012', {
+                id: 'iadjposted00012',
+            })
+        ).toBe('books/inventory-adjustments/iadjposted00012')
+    })
+
     it('opens the history screen of a vendor refund', () => {
         const collection = Object.fromEntries(Object.entries(DOCUMENT_COLLECTIONS)).vendor_refund
         expect(historyHref(collection ?? '', 'vrfd1001cascf01')).toBe(

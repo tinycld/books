@@ -11,8 +11,9 @@ interface DocumentHeaderProps {
     // The document's status; a new posting form is a draft.
     status: DocumentStatus
     // The big figure's amount; the kind names it (Balance due on an invoice and a bill,
-    // since payments lower what is still owed).
-    figure: string
+    // since payments lower what is still owed). A kind with no figure (an inventory
+    // adjustment) gives none.
+    figure?: string
     // A saved estimate past its expiration date: a warning badge beside the status.
     isExpired: boolean
     // A badge that replaces the status's (an invoice's read view: Paid, Partly paid).
@@ -60,6 +61,29 @@ function TitleBlock({ titleRow, subline }: { titleRow: ReactNode; subline: React
     )
 }
 
+interface HeaderFigureProps {
+    figure: { label: string; testId: string } | undefined
+    amount: string | undefined
+    className: string
+    testID: string
+}
+
+// The kind's big figure; nothing for a kind that names none or a screen that gives no
+// amount.
+function HeaderFigure({ figure, amount, className, testID }: HeaderFigureProps) {
+    if (!figure || amount === undefined) return null
+    return (
+        <View className={className}>
+            <Text className="text-xs uppercase tracking-wide text-muted-foreground">
+                {figure.label}
+            </Text>
+            <Text testID={testID} className="text-2xl font-semibold text-foreground tabular-nums">
+                {amount}
+            </Text>
+        </View>
+    )
+}
+
 // Title, badges and help at the left; the kind's big figure at the right (under the title
 // on a phone).
 export function DocumentHeader({
@@ -78,7 +102,7 @@ export function DocumentHeader({
     const titleId = `${doc.testId}-title`
     const badgeId = `${doc.testId}-badge`
     const expiredId = `${doc.testId}-expired-badge`
-    const figureId = `${doc.testId}-${doc.figure.testId}`
+    const figureId = `${doc.testId}-${doc.figure?.testId ?? 'figure'}`
     const titleRow = (
         <View className="flex-row flex-wrap items-center gap-2">
             <Text testID={titleId} className="text-xl font-semibold text-foreground">
@@ -97,17 +121,12 @@ export function DocumentHeader({
     return (
         <View className={layout}>
             <TitleBlock titleRow={titleRow} subline={subline} />
-            <View className={figureClass}>
-                <Text className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {doc.figure.label}
-                </Text>
-                <Text
-                    testID={figureId}
-                    className="text-2xl font-semibold text-foreground tabular-nums"
-                >
-                    {figure}
-                </Text>
-            </View>
+            <HeaderFigure
+                figure={doc.figure}
+                amount={figure}
+                className={figureClass}
+                testID={figureId}
+            />
         </View>
     )
 }

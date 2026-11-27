@@ -58,8 +58,26 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 			t.Errorf("%s indexes %s: %v", cfg.Table, cfg.Collection, err)
 		}
 	}
-	if len(searchIndexes) != 19 {
-		t.Fatalf("%d indexes, want one per search source (19)", len(searchIndexes))
+	if len(searchIndexes) != 20 {
+		t.Fatalf("%d indexes, want one per search source (20)", len(searchIndexes))
+	}
+	// Inventory-adjust spec §3.5: an adjustment matches its number and its memo.
+	adjustmentCols := 0
+	for _, cfg := range searchIndexes {
+		if cfg.Table != "fts_books_inventory_adjustments" {
+			continue
+		}
+		adjustmentCols++
+		var cols []string
+		for _, c := range cfg.Columns {
+			cols = append(cols, c.FTS+"="+c.Field)
+		}
+		if got := strings.Join(cols, ","); got != "number=number,memo=memo" {
+			t.Errorf("fts_books_inventory_adjustments columns %s, want number, memo", got)
+		}
+	}
+	if adjustmentCols != 1 {
+		t.Errorf("fts_books_inventory_adjustments is configured %d times, want once", adjustmentCols)
 	}
 	if purchaseOrdersIndex != "fts_books_purchase_orders" {
 		t.Errorf("purchaseOrdersIndex = %q, want fts_books_purchase_orders", purchaseOrdersIndex)
@@ -115,16 +133,17 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 		t.Errorf("vendorRefundsIndex = %q, want fts_books_vendor_refunds", vendorRefundsIndex)
 	}
 	for table, collection := range map[string]string{
-		"fts_books_expenses":        "books_expenses",
-		"fts_books_payments":        "books_payments",
-		"fts_books_bill_payments":   "books_bill_payments",
-		"fts_books_credit_memos":    "books_credit_memos",
-		"fts_books_refund_receipts": "books_refund_receipts",
-		"fts_books_vendor_credits":  "books_vendor_credits",
-		"fts_books_vendor_refunds":  "books_vendor_refunds",
-		"fts_books_write_offs":      "books_write_offs",
-		"fts_books_deposits":        "books_deposits",
-		"fts_books_purchase_orders": "books_purchase_orders",
+		"fts_books_expenses":              "books_expenses",
+		"fts_books_payments":              "books_payments",
+		"fts_books_bill_payments":         "books_bill_payments",
+		"fts_books_credit_memos":          "books_credit_memos",
+		"fts_books_refund_receipts":       "books_refund_receipts",
+		"fts_books_vendor_credits":        "books_vendor_credits",
+		"fts_books_vendor_refunds":        "books_vendor_refunds",
+		"fts_books_write_offs":            "books_write_offs",
+		"fts_books_deposits":              "books_deposits",
+		"fts_books_purchase_orders":       "books_purchase_orders",
+		"fts_books_inventory_adjustments": "books_inventory_adjustments",
 	} {
 		var indexed []string
 		for _, cfg := range searchIndexes {

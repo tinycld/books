@@ -17,7 +17,9 @@
 //
 // PRODUCTS gain default_bin (the bin a stock move that names none goes to) and
 // low_stock (server-written: reorder point above 0 and quantity on hand at or
-// below it). ADJUSTMENT LINES gain bin. ADJUSTMENTS gain value_change (the sum of
+// below it). ADJUSTMENT LINES gain bin and posted_value (the sum of the values of
+// the line's stock moves, written at the post and kept by a void; the create and
+// update rules keep it unset). ADJUSTMENTS gain value_change (the sum of
 // the values of its stock moves, written at the post), replaces (the posted
 // adjustment a correction replaces, set at create only) and replaced_by (written
 // by the server); the create and update rules are set again with those server
@@ -57,6 +59,9 @@ const ADJUSTMENT_SERVER_FIELDS = [
 const SHIPPED_ADJUSTMENT_SERVER_FIELDS = ADJUSTMENT_SERVER_FIELDS.filter(
     f => f !== 'value_change' && f !== 'replaced_by'
 )
+// The line field only Books writes: posted_value, the sum of the values of the
+// line's stock moves, written at the post (server/inventory_adjustments.go).
+const LINE_SERVER_FIELDS = ['posted_value']
 const adjustmentCreateRule = fields =>
     `${WRITE} && @request.body.status = "draft" && @request.body.kind = "manual" && ${unset(...fields)}`
 const adjustmentUpdateRule = (...fields) =>
@@ -175,6 +180,11 @@ migrate(
 
         const lines = app.findCollectionByNameOrId('books_inventory_adjustment_lines')
         lines.fields.add(new RelationField({ name: 'bin', collectionId: bins.id, cascadeDelete: false, maxSelect: 1 }))
+        lines.fields.add(
+            new NumberField({ name: 'posted_value', onlyInt: true, min: -MAX_STORED, max: MAX_STORED })
+        )
+        lines.createRule = `${WRITE} && ${unset(...LINE_SERVER_FIELDS)}`
+        lines.updateRule = `${WRITE} && ${unset(...LINE_SERVER_FIELDS)}`
         app.save(lines)
 
         const adjustments = app.findCollectionByNameOrId('books_inventory_adjustments')
@@ -231,6 +241,9 @@ migrate(
         app.save(adjustments)
 
         const lines = app.findCollectionByNameOrId('books_inventory_adjustment_lines')
+        lines.createRule = WRITE
+        lines.updateRule = WRITE
+        lines.fields.removeByName('posted_value')
         lines.fields.removeByName('bin')
         app.save(lines)
 

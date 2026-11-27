@@ -45,7 +45,7 @@ function sameRows<Row>(a: readonly Row[], b: readonly Row[]) {
 }
 
 function sameFilters(a: ListFilters, b: ListFilters) {
-    return a.search === b.search && a.showInactive === b.showInactive
+    return a.search === b.search && a.showInactive === b.showInactive && a.view === b.view
 }
 
 // A new search or Show inactive starts a new query, which loads before it shows. Until

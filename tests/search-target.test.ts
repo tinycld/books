@@ -151,6 +151,16 @@ describe('searchTarget', () => {
         expect(searchTarget('deposit:')).toBeNull()
     })
 
+    // Inventory-adjust spec §3.5: an adjustment hit (kind inventory_adjustment) opens the
+    // adjustment.
+    it('routes an inventory adjustment hit to the adjustment screen', () => {
+        expect(searchTarget('inventory_adjustment:abc')).toEqual({
+            path: 'books/inventory-adjustments/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('inventory_adjustment:')).toBeNull()
+    })
+
     // Receive payment spec §3.9: a payment hit (kind payment) opens the payment.
     it('routes a payment hit to the payment screen', () => {
         expect(searchTarget('payment:abc')).toEqual({

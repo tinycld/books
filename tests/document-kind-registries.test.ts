@@ -123,7 +123,6 @@ const REGISTRIES: Registry[] = [
             transfer: "an entry's history opens by its doc type (audit-record-route.ts entryPath)",
             payment: 'no document kind: RECORD_PATHS of lib/audit-record-route.ts opens it',
             bill_payment: 'no document kind: RECORD_PATHS of lib/audit-record-route.ts opens it',
-            inventory_adjustment: ADJUSTMENT_PENDING,
         },
     },
     {
@@ -133,7 +132,7 @@ const REGISTRIES: Registry[] = [
                 doc_type: kind.key,
                 origin: 'manual',
             })?.startsWith(`books/${kind.route}/`) ?? false,
-        excluded: { inventory_adjustment: ADJUSTMENT_PENDING },
+        excluded: {},
     },
     {
         name: 'AUDIT_RECORD_TYPE_OPTIONS (lib/audit-log.ts), the kind and its lines',
@@ -164,12 +163,12 @@ const REGISTRIES: Registry[] = [
             const searchKind = kind.key === 'journal' ? 'entry' : kind.key
             return searchTarget(`${searchKind}:rec1`)?.path === `books/${kind.route}/[id]`
         },
-        excluded: { inventory_adjustment: ADJUSTMENT_PENDING },
+        excluded: {},
     },
     {
         name: 'route keys: DOCUMENT_SCREENS and ENTRY_SCREENS (hooks/useRouteRecordId.ts)',
         has: kind => routeScreenOf(kind) === `${kind.route}/[id]`,
-        excluded: { inventory_adjustment: ADJUSTMENT_PENDING },
+        excluded: {},
     },
     {
         name: 'NEW_ACTIONS (lib/new-actions.ts)',

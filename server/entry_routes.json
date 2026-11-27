@@ -10,5 +10,6 @@
     "vendor_refund": "vendor-refunds",
     "refund_receipt": "refund-receipts",
     "write_off": "write-offs",
-    "deposit": "deposits"
+    "deposit": "deposits",
+    "inventory_adjustment": "inventory-adjustments"
 }
