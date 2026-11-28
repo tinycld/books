@@ -23,6 +23,7 @@ import { writeRefusalText } from '../lib/refusal'
 import { tableWriteSteps } from '../lib/table-writes'
 import { useAdjustmentSaveStore } from '../stores/adjustment-save-store'
 import type { AdjustmentForm } from './useAdjustmentForm'
+import { useAdjustmentDelete } from './useAdjustmentReadActions'
 import { useFormLeaveGuard } from './useFormLeaveGuard'
 import { useRecordNavigation } from './useRecordNavigation'
 
@@ -52,12 +53,18 @@ interface AdjustmentSaveInput {
     // `refused`); the hand-off is cleared when this form goes, so a later open of the draft
     // starts from the stored rows.
     holdsHandOff: boolean
+    // The posted adjustment this form corrects ('' for none): `?replaces` of a new form, or
+    // a stored correction draft's `replaces`. A correction posts only (spec §3.4). '' when
+    // not given.
+    replaces?: string
 }
 
 type SaveVariables = {
     id: string
     // The header is inserted (a new adjustment whose header no save wrote yet) or updated.
     insertsHeader: boolean
+    // The posted adjustment the inserted header replaces ('' for none).
+    replaces: string
     isPost: boolean
     values: AdjustmentValues
     rows: ReadonlyMap<string, LineRow>
@@ -126,14 +133,19 @@ function useAdjustmentWrites() {
         position: row.position,
     })
     return {
-        // A new adjustment is a manual draft that replaces nothing; the server gives the
-        // number at the post.
-        insertHeader: (id: string, header: { date: string; account: string; memo: string }) =>
+        // A new adjustment is a manual draft; a correction names the adjustment it replaces
+        // (set at create only; spec §4 "A correction inserts with `replaces`"). The server
+        // gives the number at the post.
+        insertHeader: (
+            id: string,
+            header: { date: string; account: string; memo: string },
+            replaces: string
+        ) =>
             adjustmentsCollection.insert({
                 id,
                 status: 'draft',
                 kind: 'manual',
-                replaces: '',
+                replaces,
                 ...header,
             }),
         updateHeader: (id: string, header: { date: string; account: string; memo: string }) =>
@@ -166,10 +178,16 @@ function useAdjustmentWrites() {
  * to the store's hand-off and the route moves to the draft, whose form shows both (so
  * Discard never leaves a draft the user did not see). Save draft on `/new` replaces the
  * route with the draft's; Post on `/new` with the read view's; Post & new opens a blank
- * form (`?fresh=`). After the user left, a refusal is logged.
+ * form (`?fresh=`). A correction (`replaces`) inserts its header with `replaces` and posts
+ * only: Save draft and Post & new do nothing on it, and the store's `correcting` names
+ * its original from before the mutation, so the screen keeps the form while the server's
+ * post voids the original. A post that worked clears the store's `shownDraft` before the
+ * hold ends, so the own post is not a stale draft. Delete draft deletes a saved draft
+ * (useAdjustmentDelete) and opens the list. After the user left, a refusal is logged.
  */
 export function useAdjustmentSave(input: AdjustmentSaveInput) {
-    const { adjustmentForm, adjustmentId, storedLines, holdsHandOff } = input
+    const { adjustmentForm, adjustmentId, storedLines, holdsHandOff, replaces = '' } = input
+    const isCorrection = replaces !== ''
     const orgHref = useOrgHref()
     const { leave: leaveToList } = useRecordNavigation(ADJUSTMENTS_PATH)
     const { form } = adjustmentForm
@@ -194,21 +212,34 @@ export function useAdjustmentSave(input: AdjustmentSaveInput) {
     // Set (in the store, synchronously) before the hand-off's move, so the leave guard lets
     // the move go.
     const isHandingOff = useAdjustmentSaveStore(state => isNew && state.refused?.id === id)
+    // This draft was deleted (by its own Delete, or the list's beside it): the delete's move
+    // to the list goes on, and its edits are not asked about.
+    const isDeleted = useAdjustmentSaveStore(state => state.deleted === id)
     useEffect(() => {
         isLive.current = true
         return () => {
             isLive.current = false
             const store = useAdjustmentSaveStore.getState()
             if (holdsHandOff && store.refused?.id === id) store.clearRefused()
+            store.clearDeleted(id)
         }
     }, [holdsHandOff, id])
+    // A correction's post that worked keeps `correcting` until this form goes, so the form
+    // does not show "cannot be edited" (its original is void now) while it moves on.
+    useEffect(() => {
+        if (!replaces) return
+        return () => useAdjustmentSaveStore.getState().stopCorrecting(replaces)
+    }, [replaces])
 
     const save = useMutation({
         mutationFn: function* (variables: SaveVariables) {
             const { values, progress } = variables
             const header = { date: values.date, account: values.account, memo: values.memo }
-            if (variables.insertsHeader) yield writes.insertHeader(variables.id, header)
-            else yield writes.updateHeader(variables.id, header)
+            if (variables.insertsHeader) {
+                yield writes.insertHeader(variables.id, header, variables.replaces)
+            } else {
+                yield writes.updateHeader(variables.id, header)
+            }
             progress.isHeaderWritten = true
             const rowOf = (rowId: string) => {
                 const row = variables.rows.get(rowId)
@@ -255,8 +286,20 @@ export function useAdjustmentSave(input: AdjustmentSaveInput) {
         // A saved or posted new adjustment moves to its own route; a draft's route already is.
         if (isNew) replaceWith(adjustmentPath(id))
     }
+    // A write that worked, while the save store still holds the adjustment.
+    const afterWrite = (mode: AdjustmentSaveMode, submitted: AdjustmentValues) => {
+        // The own post is no change by someone else: the draft's form stops being a shown
+        // draft before the hold ends (useStaleDraft).
+        if (mode !== 'draft') useAdjustmentSaveStore.getState().hideDraft(id)
+        if (!isLive.current || left.current) return
+        form.reset(submitted)
+        afterSave(mode)
+    }
 
     const submit = (mode: AdjustmentSaveMode) => async () => {
+        // A correction posts only, as the deposit's: no draft of it is saved and no Post &
+        // new follows it (spec §3.4; its bar and keys offer neither).
+        if (isCorrection && mode !== 'post') return
         if (isBusy.current) return
         isBusy.current = true
         left.current = false
@@ -272,22 +315,24 @@ export function useAdjustmentSave(input: AdjustmentSaveInput) {
                     lineAt: null,
                 }
                 const store = useAdjustmentSaveStore.getState()
+                // A correction's post voids its original in the same server transaction:
+                // the screen keeps this form over "cannot be edited" while it runs.
+                if (isCorrection) store.startCorrecting(replaces)
                 store.hold({ id, purpose: 'save' })
                 try {
                     await save.mutateAsync({
                         id,
                         insertsHeader: isNew,
+                        replaces,
                         isPost: mode !== 'draft',
                         values: parsed,
                         rows: new Map(after.map(row => [row.id, row])),
                         plan: planTableWrites(before, after, []),
                         progress,
                     })
-                    if (isLive.current && !left.current) {
-                        form.reset(submitted)
-                        afterSave(mode)
-                    }
+                    afterWrite(mode, submitted)
                 } catch (error) {
+                    if (isCorrection) store.stopCorrecting(replaces)
                     const { lineAt } = progress
                     if (!isLive.current || left.current) {
                         log.warn(LOG_CONTEXT, writeRefusalText(error))
@@ -318,12 +363,32 @@ export function useAdjustmentSave(input: AdjustmentSaveInput) {
 
     const ask = () => setDiscardOpen(true)
 
+    // Delete draft (⌘⌫): one delete of the saved draft, held by the save store so the form
+    // stays until the server answers; then the list.
+    const draftDelete = useAdjustmentDelete({
+        holds: () => true,
+        onDeleted: () => {
+            if (isLive.current && !left.current) leaveToList()
+        },
+        hasLeft: () => !isLive.current || left.current,
+    })
+    const openDeleteDraft = () => {
+        if (isNew) return
+        left.current = false
+        draftDelete.open({ id, number: '' })
+    }
+
     return {
-        isPending: save.isPending,
-        // A refused save handed off to the draft: its move is under way.
-        isLeaving: isHandingOff,
+        isPending: save.isPending || draftDelete.isPending,
+        // A refused save handed off to the draft, or the draft was deleted: its move is
+        // under way.
+        isLeaving: isHandingOff || draftDelete.isDone || isDeleted,
         isDirty,
         isDiscardOpen,
+        isCorrection,
+        openDeleteDraft,
+        isDeleteOpen: draftDelete.isOpen,
+        deleteDialog: draftDelete.dialog,
         saveDraft: submit('draft'),
         post: submit('post'),
         postAndNew: submit('post-new'),

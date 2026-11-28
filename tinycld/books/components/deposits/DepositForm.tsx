@@ -1,8 +1,7 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { log } from '@tinycld/core/lib/logger'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { formatHint, type ScopeOwner } from '@tinycld/core/lib/shortcuts'
-import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
+import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { FormErrorSummary, TextAreaInput } from '@tinycld/core/ui/form'
 import { useMemo, useState } from 'react'
 import { Platform, ScrollView, Text, View } from 'react-native'
@@ -19,11 +18,7 @@ import { type UndepositedItem, useUndepositedItems } from '../../hooks/useUndepo
 import { bankAccountOptions, type DepositAccountRow } from '../../lib/deposit-accounts'
 import { depositRefusalErrors } from '../../lib/deposit-refusals'
 import type { DepositSchemaContext } from '../../lib/deposit-schema'
-import {
-    DEPOSIT_FORM_DESCRIPTIONS,
-    DEPOSIT_FORM_KEYS,
-    type DepositFormMode,
-} from '../../lib/deposit-shortcuts'
+import type { DepositFormMode } from '../../lib/deposit-shortcuts'
 import { DEPOSIT_MESSAGES } from '../../lib/deposit-texts'
 import {
     correctionValuesOf,
@@ -34,12 +29,7 @@ import {
 import { todayIso } from '../../lib/register-range'
 import { rootErrorOnly } from '../../lib/root-errors'
 import type { DepositRefusedSave } from '../../stores/deposit-save-store'
-import {
-    DocumentActionBar,
-    DocumentBar,
-    type DocumentBarAction,
-    type DocumentMoreItem,
-} from '../documents/DocumentActionBar'
+import { CorrectionBar, DocumentActionBar } from '../documents/DocumentActionBar'
 import { DocumentHeader } from '../documents/DocumentHeader'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
@@ -90,53 +80,29 @@ type BarProps = {
     scopeOwner: ScopeOwner
 }
 
-const DELETE_DRAFT_HINT = formatHint(DEPOSIT_FORM_KEYS.deleteDraft).text
-
-// A correction's bar: Cancel and Save (⌘↵), which posts it, and on a stored correction
-// draft (a correction whose post was refused after its header was written) More with
-// Delete draft (⌘⌫, registered by useDepositShortcuts), the row DocumentActionBar draws.
-function CorrectionBar({ save, onCancel, isSavedDraft, isPhone, scopeOwner }: BarProps) {
-    const writeState = useServerActionState({ isDisabled: save.isPending })
-    const actions: DocumentBarAction[] = [
-        {
-            id: 'cancel',
-            label: DEPOSIT_FORM_DESCRIPTIONS.cancel,
-            keys: DEPOSIT_FORM_KEYS.cancel,
-            onPress: onCancel,
-        },
-        {
-            id: 'save',
-            label: 'Save',
-            keys: DEPOSIT_FORM_KEYS.post,
-            onPress: save.post,
-            isPrimary: true,
-            isServerAction: true,
-        },
-    ]
-    const deleteDraft: DocumentMoreItem = {
-        id: 'delete-draft',
-        label: DEPOSIT_FORM_DESCRIPTIONS.deleteDraft,
-        keys: DELETE_DRAFT_HINT,
-        isDisabled: writeState.isDisabled,
-        onSelect: save.openDeleteDraft,
-    }
-    const moreItems = isSavedDraft ? [deleteDraft] : []
-    return (
-        <DocumentBar
-            actions={actions}
-            isSaving={save.isPending}
-            isPhone={isPhone}
-            moreItems={moreItems}
-            scopeOwner={scopeOwner}
-        />
-    )
-}
+// A correction posts with Save (⌘↵).
+const CORRECTION_POST = { id: 'save', label: 'Save' }
 
 // The bar: a new deposit or a draft has Cancel, Save draft, Post, Post & new and More
-// (DocumentActionBar); a correction has CorrectionBar.
+// (DocumentActionBar); a correction has the shared CorrectionBar: Cancel and Save, and on a
+// stored correction draft (a correction whose post was refused after its header was
+// written) More with Delete draft (⌘⌫, registered by useDepositShortcuts).
 function DepositFormBar(props: BarProps) {
     const { mode, save, onCancel, isSavedDraft, isPhone, scopeOwner } = props
-    if (mode === 'replaces') return <CorrectionBar {...props} />
+    if (mode === 'replaces') {
+        return (
+            <CorrectionBar
+                isSaving={save.isPending}
+                canDeleteDraft={isSavedDraft}
+                isPhone={isPhone}
+                onCancel={onCancel}
+                onPost={save.post}
+                onDeleteDraft={save.openDeleteDraft}
+                post={CORRECTION_POST}
+                scopeOwner={scopeOwner}
+            />
+        )
+    }
     return (
         <DocumentActionBar
             isSaving={save.isPending}

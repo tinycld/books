@@ -2,11 +2,24 @@ import { eq, inArray } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { materialize } from 'pbtsdb'
-import { useMemo, useRef } from 'react'
-import type { OnHandOf } from '../lib/adjustment-values'
+import { useMemo, useState } from 'react'
+import { newFromChange, type OnHandOf } from '../lib/adjustment-values'
 import type { LiveRecovery } from '../lib/live-recovery'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
+
+// A stored change the On hand leaves out: a line of the posted adjustment that a correction
+// replaces (its post voids that adjustment, so its change is taken back first).
+export type ExcludedChange = { product: string; bin: string; quantity: number }
+
+const NO_EXCLUDED: readonly ExcludedChange[] = []
+
+// The sum of the excluded changes of an item, and of the item in one bin.
+function excludedOf(excluded: readonly ExcludedChange[], product: string, bin: string | null) {
+    return excluded
+        .filter(change => change.product === product && (bin === null || change.bin === bin))
+        .reduce((sum, change) => newFromChange(sum, change.quantity), 0)
+}
 
 // The distinct item ids of the lines, sorted, so the query key does not change with the
 // lines' order or with a second line of the same item.
@@ -23,9 +36,15 @@ function idsOf(productIds: readonly string[]): string[] {
  * not loaded (its On hand shows "…" and New quantity waits); while a new item's query
  * loads, the items of the last finished query stay known. No item, no query: ready. A
  * failed read gives its query and sources to `recovery`. The result is one object while
- * its rows stay the same.
+ * its rows stay the same. `excluded` (a correction's original lines, while that original
+ * is posted) is taken out of the quantity in the bin and of the total, so On hand reads as
+ * it will be once the post voids the original.
  */
-export function useAdjustmentLineStock(productIds: readonly string[], hasBins: boolean) {
+export function useAdjustmentLineStock(
+    productIds: readonly string[],
+    hasBins: boolean,
+    excluded: readonly ExcludedChange[] = NO_EXCLUDED
+) {
     const [productsCollection, stockCollection] = useStore('books_products', 'books_bin_stock')
     const ids = idsOf(productIds)
     const key = ids.join(',')
@@ -56,25 +75,36 @@ export function useAdjustmentLineStock(productIds: readonly string[], hasBins: b
     type StockRow = NonNullable<typeof rows>[number]
     const isLoaded = query.isReady
     // The rows of the last query that finished: a pick of a new item makes a new query (its
-    // key is the ids), and while it loads the other lines keep their stock from these.
-    const lastLoaded = useRef<ReadonlyMap<string, StockRow>>(new Map())
-    const products = useMemo(() => {
-        const current = new Map((rows ?? []).map(row => [row.id, row]))
-        if (isLoaded) return current
-        return new Map([...lastLoaded.current, ...current])
-    }, [rows, isLoaded])
-    if (isLoaded) lastLoaded.current = products
+    // key is the ids), and while it loads the other lines keep their stock from these. Kept
+    // in state, updated while rendering (as useRecordList's keepLastSettled).
+    const current = useMemo(
+        () => new Map<string, StockRow>((rows ?? []).map(row => [row.id, row])),
+        [rows]
+    )
+    const [lastLoaded, setLastLoaded] = useState<ReadonlyMap<string, StockRow>>(current)
+    if (isLoaded && lastLoaded !== current) setLastLoaded(current)
+    const merged = useMemo(() => new Map([...lastLoaded, ...current]), [lastLoaded, current])
+    const products = isLoaded ? current : merged
     const isError = ids.length > 0 && query.isError
     const isReady = ids.length === 0 || isLoaded || isError
     const collection = query.collection
-    // One object while the rows stay the same, so a reader can follow a change of the stock.
+    // One object while the rows and the excluded changes stay the same, so a reader can
+    // follow a change of the stock (the caller keeps `excluded` one array while its changes
+    // stay the same).
     return useMemo(() => {
         const onHandOf: OnHandOf = (product, bin) => {
             const row = products.get(product)
-            const total = row?.quantity_on_hand ?? 0
+            const total = newFromChange(
+                row?.quantity_on_hand ?? 0,
+                -excludedOf(excluded, product, null)
+            )
             if (!hasBins) return { quantity: total, total }
             const inBin = (row?.inBins ?? []).find(stock => stock.bin === bin)
-            return { quantity: inBin?.quantity ?? 0, total }
+            const quantity = newFromChange(
+                inBin?.quantity ?? 0,
+                -excludedOf(excluded, product, bin)
+            )
+            return { quantity, total }
         }
         const recovery: LiveRecovery = isError
             ? { queries: [collection], sources: [productsCollection, stockCollection] }
@@ -87,7 +117,16 @@ export function useAdjustmentLineStock(productIds: readonly string[], hasBins: b
             isError,
             recovery,
         }
-    }, [products, hasBins, isReady, isError, collection, productsCollection, stockCollection])
+    }, [
+        products,
+        hasBins,
+        isReady,
+        isError,
+        collection,
+        productsCollection,
+        stockCollection,
+        excluded,
+    ])
 }
 
 export type AdjustmentLineStock = ReturnType<typeof useAdjustmentLineStock>

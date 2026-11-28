@@ -974,7 +974,11 @@ export const INVENTORY_TEXTS = {
     reportEmpty: 'No stock in a bin location',
     // A server refusal of a post, shown on its line ("Line n: …").
     lineRefusal: 'Line 3: A quantity increase cannot have a value below 0.',
-    voidBody: `Void inventory adjustment ${adjustmentOf(ADJ.posted).number}? Its stock change is taken back.`,
+    // The Void confirm (spec §3.4 "Void: confirm …"), its title and its question.
+    voidTitle: 'Void inventory adjustment',
+    voidBody: (number: string) =>
+        `Void inventory adjustment ${number}? Its stock change is taken back.`,
+    cannotEdit: 'This inventory adjustment cannot be edited',
     openingNotice:
         'Books made this adjustment for the opening stock of Shipping labels, 4 x 6 in, roll of 500. To change it, change the item’s opening stock.',
     recostNotice: 'Books made this adjustment when the cost of Bill 318 changed.',

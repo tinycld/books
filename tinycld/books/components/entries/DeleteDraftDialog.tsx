@@ -8,6 +8,8 @@ interface DeleteDraftDialogProps {
     isPending: boolean
     // The server's refusal, shown until the next attempt.
     errorMessage?: string | null
+    // The confirm waits (writes are unavailable); Cancel stays.
+    isConfirmDisabled?: boolean
     // The words and ids of another record's delete (an estimate's); the defaults are a
     // draft's.
     title?: string
@@ -26,6 +28,7 @@ export function DeleteDraftDialog({
     onCancel,
     isPending,
     errorMessage = null,
+    isConfirmDisabled = false,
     title = 'Delete this draft?',
     body = 'The draft and its lines are deleted. This cannot be undone.',
     actionLabel = 'Delete draft',
@@ -36,6 +39,7 @@ export function DeleteDraftDialog({
         confirm: `${testIdPrefix}-confirm`,
         refusal: `${testIdPrefix}-refusal`,
     }
+    const isConfirmIdle = isPending || isConfirmDisabled
     return (
         <Dialog
             isOpen={isVisible}
@@ -52,8 +56,8 @@ export function DeleteDraftDialog({
                 <Dialog.CancelButton onPress={onCancel} isDisabled={isPending} />
                 <Dialog.ActionButton
                     label={actionLabel}
-                    onPress={isPending ? ignore : onConfirm}
-                    isDisabled={isPending}
+                    onPress={isConfirmIdle ? ignore : onConfirm}
+                    isDisabled={isConfirmIdle}
                     isDestructive
                     shortcut={DIALOG_SUBMIT_SHORTCUT}
                     testID={ids.confirm}

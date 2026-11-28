@@ -7,6 +7,7 @@ import {
     ADJUSTMENT_FORM_KEYS,
     ADJUSTMENT_LINES_GROUP,
     type AdjustmentFormKeyAction,
+    type AdjustmentFormMode,
     adjustmentFormKeysOffered,
     isAdjustmentLineKey,
 } from '../lib/adjustment-shortcuts'
@@ -24,12 +25,16 @@ interface AdjustmentShortcutsInput {
     canWrite: boolean
     // A save runs (the save store holds the adjustment).
     isPending: boolean
-    // The Discard (or, from checkpoint 5, Delete draft) dialog is open.
+    // The Discard or the Delete draft dialog is open.
     isDialogOpen: boolean
     // The form shows a saved draft, so More holds Delete draft.
     isSavedDraft: boolean
     // A phone puts Save draft and Post & new in More, so their keys are registered here.
     isPhone: boolean
+    // A correction posts only (no ⌘S, no ⌘⇧↵); 'new' when not given.
+    mode?: AdjustmentFormMode
+    // The draft was posted or deleted elsewhere (adjustmentStale): every write key is off.
+    isStale?: boolean
     lineCount: number
     // The focus is inside a line now (read from a ref when the key fires).
     isLineFocused: () => boolean
@@ -38,7 +43,7 @@ interface AdjustmentShortcutsInput {
         postAndNew: () => void
         // Removes the line that holds the focus.
         removeLine: () => void
-        // Delete draft's dialog; undefined until the form has one, and then ⌘⌫ is not taken.
+        // Opens Delete draft's dialog; undefined on a new form, and then ⌘⌫ is not taken.
         deleteDraft?: () => void
     }
 }
@@ -70,7 +75,8 @@ function ownKeyFlagsOf(
  * draft once the form passes it, and on a phone ⌘S Save draft and ⌘⇧↵ Post & new (their
  * More rows hold no key); the bar's keys are in the group "Inventory adjustment". Each is
  * registered only while offered (`adjustmentFormKeysOffered`), as core's ⇧? list ignores
- * `when`. The line focus moves with every Tab, so ⌘⌥⌫ is registered while a line exists
+ * `when`; a correction (`mode` replaces) offers no ⌘S and no ⌘⇧↵, and a draft that changed
+ * elsewhere (`isStale`) no write key. The line focus moves with every Tab, so ⌘⌥⌫ is registered while a line exists
  * and its `when` reads the focus when the key fires. ⌘S is always taken, so the browser's
  * Save Page never opens: an idle registration (`isUnlisted`, so ⇧? never lists it) takes
  * it while Save draft is not offered (a write runs, writes are unavailable). Returns the
@@ -84,6 +90,8 @@ export function useAdjustmentShortcuts({
     isDialogOpen,
     isSavedDraft,
     isPhone,
+    mode = 'new',
+    isStale = false,
     lineCount,
     isLineFocused,
     run,
@@ -93,7 +101,8 @@ export function useAdjustmentShortcuts({
     const offered = adjustmentFormKeysOffered({
         holdsKeys: true,
         canWrite,
-        writesAvailable: writes.available,
+        writesAvailable: writes.available && !isStale,
+        mode,
         isWriteHeld: isPending,
         isDialogOpen,
         isSavedDraft,

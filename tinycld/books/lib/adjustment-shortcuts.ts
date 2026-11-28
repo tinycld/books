@@ -4,9 +4,42 @@
 // the group "Lines". Core's ⇧? list shows every registered key and ignores `when`, so a
 // key is registered only while `adjustmentFormKeysOffered` lists it.
 
+import type { AdjustmentReadActions } from './adjustment-actions'
 import { canAddAdjustmentLine } from './adjustment-values'
 import { DEPOSIT_FORM_KEYS } from './deposit-shortcuts'
+import { DOCUMENT_READ_KEYS } from './document-actions'
 import { FORM_KEYS, type FormKeyAction } from './entry-shortcuts'
+
+// The read view's keys (spec §3.4 "Read view: Edit E, Void V, Copy C"): the letters of the
+// documents' read views.
+export type AdjustmentReadKeyAction = keyof AdjustmentReadActions
+
+export const ADJUSTMENT_READ_KEYS: Record<AdjustmentReadKeyAction, string> = {
+    edit: DOCUMENT_READ_KEYS.edit,
+    void: DOCUMENT_READ_KEYS.void,
+    copy: DOCUMENT_READ_KEYS.copy,
+}
+
+export const ADJUSTMENT_READ_DESCRIPTIONS: Record<AdjustmentReadKeyAction, string> = {
+    edit: 'Edit',
+    void: 'Void',
+    copy: 'Copy',
+}
+
+const READ_KEY_ORDER: readonly AdjustmentReadKeyAction[] = ['edit', 'void', 'copy']
+
+/**
+ * The read view's keys whose action is offered (lib/adjustment-actions.ts
+ * `adjustmentReadActions`): a disabled or hidden action has no key, and no key is offered
+ * while another layer (a dialog) holds the keys.
+ */
+export function adjustmentReadKeysOffered(
+    actions: AdjustmentReadActions,
+    holdsKeys: boolean
+): AdjustmentReadKeyAction[] {
+    if (!holdsKeys) return []
+    return READ_KEY_ORDER.filter(action => actions[action] === 'offered')
+}
 
 // The ⇧? group of the line keys; the bar's keys take ADJUSTMENT_SHORTCUT_GROUP
 // (lib/adjustment-kind.ts).
@@ -56,22 +89,36 @@ export type AdjustmentFormKeyState = {
     lineCount: number
     // The focus is inside a line (the line container's focus events).
     isLineFocused: boolean
+    // The form's bar: a new adjustment or a draft (`new`, the default), or a correction
+    // (`?replaces`), which posts only (spec §3.4, the deposit's correction bar).
+    mode?: AdjustmentFormMode
+}
+
+// `new`: a new adjustment or a saved draft; `replaces`: the correction of a posted one.
+export type AdjustmentFormMode = 'new' | 'replaces'
+
+// The bar's write keys: a new form or a draft posts, posts and starts a new one, and saves
+// a draft; a correction offers no Save draft and no Post & new, as the deposit's.
+const WRITE_KEYS: Record<AdjustmentFormMode, readonly AdjustmentFormKeyAction[]> = {
+    new: ['post', 'postAndNew', 'saveDraft'],
+    replaces: ['post'],
 }
 
 /**
  * The form keys whose action is offered right now. Every key is off while a write runs
  * (the bar's buttons are busy), while a dialog is open, and while another layer holds the
  * keys. The write keys (Post, Post & new, Save draft, Delete draft) are off without write
- * access or while writes are unavailable; Cancel stays. ⌘⌫ is offered on a saved draft
- * only. ⌥↵ is offered to a writer while the form holds fewer than 500 lines, also offline
- * (adding a line writes nothing); ⌘⌥⌫ only while the focus is inside a line.
+ * access or while writes are unavailable; Cancel stays. A correction offers Post (⌘↵) and
+ * no ⌘S or ⌘⇧↵. ⌘⌫ is offered on a saved draft only. ⌥↵ is offered to a writer while the
+ * form holds fewer than 500 lines, also offline (adding a line writes nothing); ⌘⌥⌫ only
+ * while the focus is inside a line.
  */
 export function adjustmentFormKeysOffered(
     state: AdjustmentFormKeyState
 ): AdjustmentFormKeyAction[] {
     if (!state.holdsKeys || state.isDialogOpen || state.isWriteHeld) return []
     const canWriteNow = state.canWrite && state.writesAvailable
-    const writes: AdjustmentFormKeyAction[] = canWriteNow ? ['post', 'postAndNew', 'saveDraft'] : []
+    const writes = canWriteNow ? [...WRITE_KEYS[state.mode ?? 'new']] : []
     const deleteDraft: AdjustmentFormKeyAction[] =
         canWriteNow && state.isSavedDraft ? ['deleteDraft'] : []
     const addLine: AdjustmentFormKeyAction[] =

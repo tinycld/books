@@ -1,5 +1,7 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { ScrollView, Text, View } from 'react-native'
+import { useAdjustmentReadActions } from '../../hooks/useAdjustmentReadActions'
 import type { AdjustmentRecordView } from '../../hooks/useAdjustmentRecord'
 import { useOpenDocument } from '../../hooks/useOpenDocument'
 import { useRecordNavigation } from '../../hooks/useRecordNavigation'
@@ -12,6 +14,7 @@ import { DocumentHeader } from '../documents/DocumentHeader'
 import { BackLink } from '../entries/EntryHeader'
 import { TotalLine } from '../payments/PaymentTotals'
 import { Detail, READ_BAND, Stamp, stampOf, TextLink } from '../payments/read-view-parts'
+import { AdjustmentReadActions, AdjustmentRefusalNotice } from './AdjustmentReadActions'
 import { AdjustmentReadLines } from './AdjustmentReadLines'
 import { BooksMadeNotice } from './BooksMadeNotice'
 
@@ -49,24 +52,29 @@ interface AdjustmentReadViewProps {
     hasBins: boolean
     // The number of a re-cost's source document (useRecostSourceNumber).
     sourceNumber: string | undefined
+    scopeOwner: ScopeOwner
 }
 
 /**
- * A stored inventory adjustment (inventory-adjust spec §3.5): the back link, the header
- * with its number and status (no figure), the notice of an adjustment Books made, the link
- * to the adjustment that replaced it, Date, Adjustment account and Memo, the lines with the
- * value Books posted for each (`posted_value`; "—" on a draft), Total value change (the
- * stored `value_change`; "—" on a draft), the stamps and the entry link or the no-entry
- * text. Links to another document open by useOpenDocument (pop when it is right below).
+ * A stored inventory adjustment (inventory-adjust spec §3.4, §3.5): the back link, the
+ * header with its number and status (no figure), the refusal of the last Void, the notice
+ * of an adjustment Books made, the link to the adjustment that replaced it, Date,
+ * Adjustment account and Memo, the lines with the value Books posted for each
+ * (`posted_value`; "—" on a draft), Total value change (the stored `value_change`; "—" on a
+ * draft), the stamps and the entry link or the no-entry text, then the bar with Edit, Void
+ * and Copy (AdjustmentReadActions). Links to another document open by useOpenDocument
+ * (pop when it is right below).
  */
 export function AdjustmentReadView({
     adjustment,
     lines,
     hasBins,
     sourceNumber,
+    scopeOwner,
 }: AdjustmentReadViewProps) {
     const isPhone = useBreakpoint() === 'mobile'
     const { leave } = useRecordNavigation(ADJUSTMENTS_PATH)
+    const actions = useAdjustmentReadActions(adjustment)
     const cells = readLineCells(lines, adjustment.status, adjustment.currency)
     const total = adjustmentReadTotalText(adjustment)
     const account = adjustment.accountRow ? accountLabel(adjustment.accountRow) : ''
@@ -87,6 +95,7 @@ export function AdjustmentReadView({
                     status={adjustment.status}
                     isExpired={false}
                 />
+                <AdjustmentRefusalNotice message={actions.refusal} />
                 <BooksMadeNotice adjustment={adjustment} sourceNumber={sourceNumber} />
                 <ReplacedLink replacement={adjustment.replacement} />
                 <View className={`${READ_BAND} flex-row flex-wrap gap-x-6 gap-y-3`}>
@@ -113,6 +122,7 @@ export function AdjustmentReadView({
                     <EntryLink adjustment={adjustment} />
                 </View>
             </ScrollView>
+            <AdjustmentReadActions actions={actions} scopeOwner={scopeOwner} />
         </View>
     )
 }

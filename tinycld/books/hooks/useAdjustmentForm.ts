@@ -1,30 +1,61 @@
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useFieldArray, useForm, zodResolver } from '@tinycld/core/ui/form'
 import { newRecordId } from 'pbtsdb/core'
+import { useState } from 'react'
 import { type FieldErrors, useWatch } from 'react-hook-form'
 import { adjustmentSchema } from '../lib/adjustment-schema'
 import {
     type AdjustmentLineValues,
+    type AdjustmentStartMode,
     type AdjustmentValues,
+    adjustmentStartValues,
     canAddAdjustmentLine,
     changeFromNew,
     emptyAdjustmentLine,
     newFromChange,
+    type OnHandOf,
     quantityOfText,
     quantityText,
     valueMode,
 } from '../lib/adjustment-values'
-import { useAdjustmentLineStock } from './useAdjustmentLineStock'
+import { todayIso } from '../lib/register-range'
+import { type ExcludedChange, useAdjustmentLineStock } from './useAdjustmentLineStock'
 import { useLineFocus } from './useLineFocus'
 
-interface AdjustmentFormInput {
-    initial: AdjustmentValues
+type StartArgs = Parameters<typeof adjustmentStartValues>
+
+// The adjustment a new form starts from (`?replaces` or `?copy`, spec §3.2), with the On
+// hand its New quantities are read from.
+export type AdjustmentFormSource = {
+    mode: AdjustmentStartMode
+    adjustment: StartArgs[1]
+    lines: StartArgs[2]
+    onHandOf: OnHandOf
+}
+
+// The form mounts with given values (a new adjustment, a draft, a hand-off), or with the
+// values of another adjustment (`source`).
+export type AdjustmentFormStart =
+    | { initial: AdjustmentValues; source?: undefined }
+    | { initial?: undefined; source: AdjustmentFormSource }
+
+// A correction keeps the date of its original; a copy takes today's (adjustmentStartValues).
+function startValuesOf(start: AdjustmentFormStart): AdjustmentValues {
+    if (start.initial) return start.initial
+    const { mode, adjustment, lines, onHandOf } = start.source
+    return adjustmentStartValues(mode, adjustment, lines, onHandOf, todayIso())
+}
+
+type AdjustmentFormInput = AdjustmentFormStart & {
     // A refusal the form shows from its mount (a new adjustment's refused save handed off
     // to this draft's form).
     initialErrors?: FieldErrors<AdjustmentValues>
     hasBins: boolean
     // An item's default bin is taken on a pick only while that bin is active.
     isActiveBin: (id: string) => boolean
+    // A correction's original lines, while the original is posted: On hand leaves them out
+    // (useAdjustmentLineStock), so New quantity is what it will be after the post.
+    excluded?: readonly ExcludedChange[]
 }
 
 type LineText = 'newQuantity' | 'change' | 'value'
@@ -44,7 +75,8 @@ function changeOf(text: string): number | null {
 
 /**
  * The inventory adjustment form (inventory-adjust spec §3.2, §3.3, Do step 2): `useForm`
- * under the one schema, the lines a `useFieldArray` (keyName 'key', so the line keeps its
+ * under the one schema, mounted with the given values or with those of the adjustment a
+ * correction or a copy starts from (`source`, adjustmentStartValues), the lines a `useFieldArray` (keyName 'key', so the line keeps its
  * own `id`), and the stock of the lines' items (useAdjustmentLineStock). New quantity and
  * Change are linked in each input's change handler with `setValue` (Change = New quantity −
  * On hand, New quantity = On hand + Change); New quantity is computed only while the item's
@@ -56,13 +88,11 @@ function changeOf(text: string): number | null {
  * the last line's Value change, or in its Change while Value change shows "At cost", adds a
  * line and moves the focus to its Item; Enter in another line adds none.
  */
-export function useAdjustmentForm({
-    initial,
-    initialErrors,
-    hasBins,
-    isActiveBin,
-}: AdjustmentFormInput) {
+export function useAdjustmentForm(input: AdjustmentFormInput) {
+    const { initialErrors, hasBins, isActiveBin, excluded } = input
     const [productsCollection] = useStore('books_products')
+    // Built once: the form owns its values from its mount.
+    const [initial] = useState(() => startValuesOf(input))
     const form = useForm<AdjustmentValues>({
         defaultValues: initial,
         resolver: zodResolver(adjustmentSchema),
@@ -77,7 +107,8 @@ export function useAdjustmentForm({
     const lineArray = useFieldArray({ control: form.control, name: 'lines', keyName: 'key' })
     const stock = useAdjustmentLineStock(
         values.lines.map(line => line.product),
-        hasBins
+        hasBins,
+        excluded
     )
     const addLine = (): string | null => {
         if (!canAddAdjustmentLine(form.getValues('lines').length)) return null
@@ -182,6 +213,8 @@ export function useAdjustmentForm({
 
     return {
         form,
+        // The values the form mounted with.
+        initial,
         values,
         stock,
         lineFields: lineArray.fields,

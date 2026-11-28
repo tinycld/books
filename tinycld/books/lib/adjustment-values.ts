@@ -179,3 +179,28 @@ export function adjustmentValuesFrom(
         })),
     }
 }
+
+// `copy`: `?copy=<id>`; `replaces`: `?replaces=<id>`, the correction of a posted adjustment.
+export type AdjustmentStartMode = 'copy' | 'replaces'
+
+/**
+ * A new adjustment's values started from another one (spec §3.2): a copy takes the account,
+ * the memo and the lines (item, bin, change, value change) with `today` as its date; a
+ * correction keeps the date too. New quantity is the On hand now plus the stored Change, as
+ * `adjustmentValuesFrom`. Both are new adjustments (§4 "A correction inserts with
+ * `replaces`"), so each line takes a new row id and the save inserts every line.
+ */
+export function adjustmentStartValues(
+    mode: AdjustmentStartMode,
+    record: Pick<BooksInventoryAdjustments, 'date' | 'account' | 'memo'>,
+    lines: readonly StoredLine[],
+    onHandOf: OnHandOf,
+    today: string
+): AdjustmentValues {
+    const stored = adjustmentValuesFrom(record, lines, onHandOf)
+    return {
+        ...stored,
+        date: mode === 'copy' ? today : stored.date,
+        lines: stored.lines.map(line => ({ ...line, id: newRecordId() })),
+    }
+}

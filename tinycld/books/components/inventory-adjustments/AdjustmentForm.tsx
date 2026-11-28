@@ -9,11 +9,17 @@ import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
 import { useMemo, useState } from 'react'
 import { Platform, ScrollView, Text, View } from 'react-native'
 import {
+    type AdjustmentFormStart,
     type AdjustmentForm as AdjustmentFormState,
     useAdjustmentForm,
 } from '../../hooks/useAdjustmentForm'
+import type { ExcludedChange } from '../../hooks/useAdjustmentLineStock'
 import type { AdjustmentRecordHeader } from '../../hooks/useAdjustmentRecord'
-import { useAdjustmentLeaveGuard, useAdjustmentSave } from '../../hooks/useAdjustmentSave'
+import {
+    type AdjustmentSave,
+    useAdjustmentLeaveGuard,
+    useAdjustmentSave,
+} from '../../hooks/useAdjustmentSave'
 import { useAdjustmentShortcuts } from '../../hooks/useAdjustmentShortcuts'
 import type { FormAccount } from '../../hooks/useFormAccounts'
 import { adjustmentAccountOptions, lineAssetAccounts } from '../../lib/adjustment-accounts'
@@ -24,12 +30,14 @@ import {
     ADJUSTMENT_FORM_KEYS,
     ADJUSTMENT_LINES_GROUP,
 } from '../../lib/adjustment-shortcuts'
-import type { AdjustmentValues } from '../../lib/adjustment-values'
+import { documentConflictText } from '../../lib/revision'
 import { rootErrorOnly } from '../../lib/root-errors'
 import { showsTableCards } from '../../lib/table-fit'
 import type { AdjustmentRefusedSave } from '../../stores/adjustment-save-store'
-import { DocumentActionBar } from '../documents/DocumentActionBar'
+import { ConflictNotice } from '../ConflictNotice'
+import { CorrectionBar, DocumentActionBar } from '../documents/DocumentActionBar'
 import { DiscardDialog } from '../entries/DiscardDialog'
+import { AdjustmentDeleteDialog } from './AdjustmentDialogs'
 import { AdjustmentFormHeader } from './AdjustmentFormHeader'
 import { AdjustmentLineCards } from './AdjustmentLineCards'
 import type { AdjustmentLinesProps } from './AdjustmentLineCells'
@@ -157,13 +165,72 @@ function LinesSection({
     )
 }
 
+const STALE_TEXT = documentConflictText('Inventory adjustment', 'posting')
+// A correction posts with Post (spec §3.4), as the deposit's correction does with Save.
+const CORRECTION_POST = { id: 'post', label: 'Post' }
+
+interface FormBarProps {
+    save: AdjustmentSave
+    onCancel: () => void
+    isSavedDraft: boolean
+    isPhone: boolean
+    // The draft changed elsewhere: every write waits until the current one is loaded.
+    isStale: boolean
+    scopeOwner: ScopeOwner
+}
+
+// The bar: a new adjustment or a draft has Cancel, Save draft, Post, Post & new and More
+// (DocumentActionBar; on a phone Save draft and Post & new are More rows); a correction
+// has the shared CorrectionBar (Cancel and Post; More with Delete draft on a stored
+// correction draft, the hand-off of a refused post).
+function AdjustmentFormBar({
+    save,
+    onCancel,
+    isSavedDraft,
+    isPhone,
+    isStale,
+    scopeOwner,
+}: FormBarProps) {
+    if (save.isCorrection) {
+        return (
+            <CorrectionBar
+                isSaving={save.isPending}
+                canDeleteDraft={isSavedDraft}
+                isPhone={isPhone}
+                onCancel={onCancel}
+                onPost={save.post}
+                onDeleteDraft={save.openDeleteDraft}
+                post={CORRECTION_POST}
+                areWritesDisabled={isStale}
+                scopeOwner={scopeOwner}
+            />
+        )
+    }
+    return (
+        <DocumentActionBar
+            isSaving={save.isPending}
+            canDeleteDraft={isSavedDraft}
+            isPhone={isPhone}
+            onCancel={onCancel}
+            onSaveDraft={save.saveDraft}
+            onPost={save.post}
+            onPostAndNew={save.postAndNew}
+            onDeleteDraft={save.openDeleteDraft}
+            savesDraftInMore
+            areWritesDisabled={isStale}
+            scopeOwner={scopeOwner}
+        />
+    )
+}
+
 interface AdjustmentFormProps {
     // The stored draft; null for a new adjustment.
     adjustment: AdjustmentRecordHeader | null
     // The draft's stored lines, live, in position order.
     storedLines: readonly AdjustmentStoredLine[]
-    // The values the form mounts with (the screen builds them once its reads are in).
-    initial: AdjustmentValues
+    // The values the form mounts with, or the adjustment a correction or a copy starts from
+    // (the screen gives them once its reads are in; useAdjustmentForm builds the values).
+    start: AdjustmentFormStart
     hasBins: boolean
     canWrite: boolean
     // The chart, read by the screen; a failed read after the form opened shows with Retry.
@@ -174,6 +241,15 @@ interface AdjustmentFormProps {
     // A new adjustment's refused save handed to this draft's form (read once by the
     // screen): the form shows its refusal from the mount.
     refused: AdjustmentRefusedSave | null
+    // The lines of the posted adjustment a correction replaces: On hand leaves them out,
+    // as the post takes them back first (spec §3.4).
+    excluded: readonly ExcludedChange[]
+    // The posted adjustment this form corrects ('' for none).
+    replaces: string
+    // The draft was posted or deleted elsewhere (adjustmentStale): the notice shows, and
+    // the writes wait until the current adjustment is loaded.
+    stale: boolean
+    onLoadCurrent: () => void
     scopeOwner: ScopeOwner
 }
 
@@ -189,7 +265,7 @@ interface AdjustmentFormProps {
 export function AdjustmentForm({
     adjustment,
     storedLines,
-    initial,
+    start,
     hasBins,
     canWrite,
     accounts,
@@ -197,12 +273,14 @@ export function AdjustmentForm({
     onRetryAccounts,
     isActiveBin,
     refused,
+    excluded,
+    replaces,
+    stale,
+    onLoadCurrent,
     scopeOwner,
 }: AdjustmentFormProps) {
     const isPhone = useBreakpoint() === 'mobile'
     const adjustmentId = adjustment?.id ?? null
-    // A stored inactive account is named only for the value the form mounted with.
-    const [storedAccount] = useState(() => initial.account)
     // The hand-off's refusal, placed once: the form owns its errors from its mount.
     const [initialErrors] = useState(() =>
         refused
@@ -213,8 +291,16 @@ export function AdjustmentForm({
               })
             : undefined
     )
-    const adjustmentForm = useAdjustmentForm({ initial, initialErrors, hasBins, isActiveBin })
+    const adjustmentForm = useAdjustmentForm({
+        ...start,
+        initialErrors,
+        hasBins,
+        isActiveBin,
+        excluded,
+    })
     const { stock, values } = adjustmentForm
+    // A stored inactive account is named only for the value the form mounted with.
+    const [storedAccount] = useState(() => adjustmentForm.initial.account)
     const lineItems = values.lines.flatMap(line => stock.productOf(line.product) ?? [])
     const assets = lineAssetAccounts(accounts, lineItems)
     const assetKey = [...assets].sort().join(',')
@@ -227,28 +313,33 @@ export function AdjustmentForm({
         adjustmentId,
         storedLines,
         holdsHandOff: refused !== null,
+        replaces,
     })
     const leaveGuard = useAdjustmentLeaveGuard(save)
+    const isSavedDraft = adjustmentId !== null
+    const deleteDraft = isSavedDraft ? save.openDeleteDraft : undefined
     const shortcuts = useAdjustmentShortcuts({
         scopeOwner,
         canWrite,
         isPending: save.isPending,
-        isDialogOpen: leaveGuard.dialog.isVisible,
-        isSavedDraft: adjustmentId !== null,
+        isDialogOpen: leaveGuard.dialog.isVisible || save.isDeleteOpen,
+        isSavedDraft,
         isPhone,
+        mode: save.isCorrection ? 'replaces' : 'new',
+        isStale: stale,
         lineCount: adjustmentForm.lineFields.length,
         isLineFocused: adjustmentForm.lineFocus.isFocused,
         run: {
             saveDraft: save.saveDraft,
             postAndNew: save.postAndNew,
             removeLine: adjustmentForm.lineFocus.removeFocused,
+            deleteDraft,
         },
     })
     // A running save or post: every control waits for it, so an edit made during the write
     // is not lost when the form resets to what it submitted.
     const isWriting = save.isPending
     const summaryErrors = rootErrorOnly(adjustmentForm.form.formState.errors)
-    const noop = () => {}
     return (
         <View testID="inventory-adjustment-form" className="min-w-0 flex-1 bg-background">
             <ScrollView
@@ -265,6 +356,13 @@ export function AdjustmentForm({
                     isDisabled={isWriting}
                     hasFocusOnOpen={AUTO_FOCUS}
                     onBack={leaveGuard.cancel}
+                />
+                <ConflictNotice
+                    isVisible={stale}
+                    text={STALE_TEXT}
+                    actionLabel="Load the current inventory adjustment"
+                    testID="inventory-adjustment-stale"
+                    onReload={onLoadCurrent}
                 />
                 <ReadError
                     isVisible={isAccountsError}
@@ -289,19 +387,16 @@ export function AdjustmentForm({
                     scopeOwner={scopeOwner}
                 />
             </ScrollView>
-            <DocumentActionBar
-                isSaving={isWriting}
-                canDeleteDraft={false}
-                isPhone={isPhone}
+            <AdjustmentFormBar
+                save={save}
                 onCancel={leaveGuard.cancel}
-                onSaveDraft={save.saveDraft}
-                onPost={save.post}
-                onPostAndNew={save.postAndNew}
-                onDeleteDraft={noop}
-                savesDraftInMore
+                isSavedDraft={isSavedDraft}
+                isPhone={isPhone}
+                isStale={stale}
                 scopeOwner={scopeOwner}
             />
             <DiscardDialog title="Discard changes?" {...leaveGuard.dialog} />
+            <AdjustmentDeleteDialog state={save.deleteDialog} />
         </View>
     )
 }

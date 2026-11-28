@@ -159,12 +159,16 @@ describe('inventory-adjust seed fixture', () => {
         }
     })
 
-    it("names the posted adjustment's number in the void confirmation", () => {
-        // The seeded posted adjustment is IA-5 (the test above), and the text follows it.
-        expect(INVENTORY_TEXTS.voidBody).toContain('inventory adjustment IA-5?')
-        expect(INVENTORY_TEXTS.voidBody).toBe(
+    it("names the adjustment's number in the void confirmation, under its title", () => {
+        // One sentence for every adjustment (spec §3.4 "Void: confirm …"): the hook, the
+        // dialog and the e2e spec read it from here.
+        expect(INVENTORY_TEXTS.voidBody('IA-5')).toBe(
+            'Void inventory adjustment IA-5? Its stock change is taken back.'
+        )
+        expect(INVENTORY_TEXTS.voidBody(adjustmentOf(ADJUSTMENT_IDS.posted).number)).toBe(
             `Void inventory adjustment ${adjustmentOf(ADJUSTMENT_IDS.posted).number}? Its stock change is taken back.`
         )
+        expect(INVENTORY_TEXTS.voidTitle).toBe('Void inventory adjustment')
     })
 
     it('names a seeded item and an active-at-seed bin or No bin on each seeded line', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    adjustmentStartValues,
     adjustmentValuesFrom,
     changeFromNew,
     dropBlankLines,
@@ -144,6 +145,78 @@ describe('adjustmentValuesFrom', () => {
         )
         expect(given.lines[0]?.value).toBe('0.00')
         expect(empty.lines[0]?.value).toBe('')
+    })
+})
+
+// Spec §3.1: "`?copy=<id>` starts it from another adjustment: account, memo and lines
+// (item, bin, change, value change); today's date." A correction (`?replaces=<id>`) keeps
+// the date too. Both are new adjustments (§4 Writes: "A correction inserts with
+// `replaces`."), so no line keeps the source's row id: the line plan inserts every line.
+describe('adjustmentStartValues', () => {
+    const source = { date: '2026-11-20 00:00:00.000Z', account: 'acctshrink00001', memo: 'Count' }
+    const today = '2026-11-27'
+    const storedLines = [
+        {
+            id: 'ialnline0000002',
+            product: 'prodtape000001',
+            bin: '',
+            quantity: 1,
+            value: 500,
+            value_given: true,
+            position: 1,
+        },
+        {
+            id: 'ialnline0000001',
+            product: 'prodlabels00001',
+            bin: 'binaisle300001',
+            quantity: -2,
+            value: 0,
+            value_given: false,
+            position: 0,
+        },
+    ]
+    const onHandOf = (product: string, bin: string) =>
+        product === 'prodlabels00001' && bin === 'binaisle300001'
+            ? { quantity: 10, total: 10 }
+            : { quantity: 4, total: 4 }
+    const keptLines = [
+        {
+            product: 'prodlabels00001',
+            bin: 'binaisle300001',
+            newQuantity: '8',
+            change: '-2',
+            value: '',
+        },
+        { product: 'prodtape000001', bin: '', newQuantity: '5', change: '1', value: '5.00' },
+    ]
+
+    it('keeps the stored date, account, memo and lines for a correction', () => {
+        const values = adjustmentStartValues('replaces', source, storedLines, onHandOf, today)
+        expect(values.date).toBe('2026-11-20')
+        expect(values.account).toBe('acctshrink00001')
+        expect(values.memo).toBe('Count')
+        expect(values.lines).toMatchObject(keptLines)
+        expect(values.lines).toHaveLength(2)
+    })
+
+    it('dates a copy today and keeps the account, memo and lines', () => {
+        const values = adjustmentStartValues('copy', source, storedLines, onHandOf, today)
+        expect(values.date).toBe('2026-11-27')
+        expect(values.account).toBe('acctshrink00001')
+        expect(values.memo).toBe('Count')
+        expect(values.lines).toMatchObject(keptLines)
+        expect(values.lines).toHaveLength(2)
+    })
+
+    it.each(['copy', 'replaces'] as const)('gives a %s new line ids, not the stored ones', mode => {
+        const values = adjustmentStartValues(mode, source, storedLines, onHandOf, today)
+        const storedIds = storedLines.map(line => line.id)
+        const ids = values.lines.map(line => line.id)
+        for (const id of ids) {
+            expect(storedIds).not.toContain(id)
+            expect(id).toHaveLength(15)
+        }
+        expect(new Set(ids).size).toBe(ids.length)
     })
 })
 

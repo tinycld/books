@@ -78,6 +78,8 @@ export function useAdjustmentsQuery(filters: AdjustmentListFilters) {
                     id: adjustment.id,
                     status: adjustment.status,
                     kind: adjustment.kind,
+                    // The row menu offers Edit and Void only on an adjustment not replaced.
+                    replaced_by: adjustment.replaced_by,
                     number: adjustment.number,
                     date: adjustment.date,
                     value_change: adjustment.value_change,

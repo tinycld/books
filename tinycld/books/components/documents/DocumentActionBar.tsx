@@ -38,6 +38,9 @@ export interface DocumentActionBarProps {
     // A phone puts Save draft in More too, before Post & new (an inventory adjustment's
     // phone bar is Cancel, Post and More); its key is then registered by the screen.
     savesDraftInMore?: boolean
+    // Every write (Save draft, Post, Post and send, Post & new, Delete draft) waits; Cancel
+    // stays (an inventory adjustment's draft that changed elsewhere).
+    areWritesDisabled?: boolean
     scopeOwner: ScopeOwner
 }
 
@@ -55,6 +58,9 @@ export type DocumentBarAction = {
     // A server write: idle offline, as is its More row.
     isServerAction?: boolean
     wideOnly?: boolean
+    // The action waits (an inventory adjustment's draft that changed elsewhere), as does
+    // its More row and its key.
+    isDisabled?: boolean
 }
 
 const TAP = { minHeight: 44 }
@@ -93,7 +99,9 @@ function useMoreItems(
         id: action.id,
         label: action.label,
         keys: formatHint(action.keys).text,
-        isDisabled: action.isServerAction ? writeState.isDisabled : isSaving,
+        isDisabled:
+            action.isDisabled === true ||
+            (action.isServerAction ? writeState.isDisabled : isSaving),
         onSelect: action.onPress,
     }))
     return [...leading, ...moreItems]
@@ -161,7 +169,7 @@ function BarButton({ action, isVisible, isSaving, shortcut, testID, scopeOwner }
             onPress={action.onPress}
             serverAction={action.isServerAction}
             variant={variant}
-            isDisabled={isSaving}
+            isDisabled={isSaving || action.isDisabled === true}
             testID={testID}
             scopeOwner={scopeOwner}
         />
@@ -219,7 +227,10 @@ export function DocumentBar({
 }
 
 // Post and send, when the form passes it: after Post, a More row on a phone.
-function postAndSendActions(onPostAndSend: (() => void) | undefined): DocumentBarAction[] {
+function postAndSendActions(
+    onPostAndSend: (() => void) | undefined,
+    isDisabled: boolean
+): DocumentBarAction[] {
     if (onPostAndSend === undefined) return []
     const action: DocumentBarAction = {
         id: 'post-send',
@@ -228,6 +239,7 @@ function postAndSendActions(onPostAndSend: (() => void) | undefined): DocumentBa
         onPress: onPostAndSend,
         isServerAction: true,
         wideOnly: true,
+        isDisabled,
     }
     return [action]
 }
@@ -251,6 +263,7 @@ export function DocumentActionBar({
     onDeleteDraft,
     moreItems = [],
     savesDraftInMore = false,
+    areWritesDisabled = false,
     scopeOwner,
 }: DocumentActionBarProps) {
     const writeState = useServerActionState({ isDisabled: isSaving })
@@ -264,6 +277,7 @@ export function DocumentActionBar({
             onPress: onSaveDraft,
             isServerAction: true,
             wideOnly: savesDraftInMore,
+            isDisabled: areWritesDisabled,
         },
         {
             id: 'post',
@@ -272,8 +286,9 @@ export function DocumentActionBar({
             onPress: onPost,
             isPrimary: true,
             isServerAction: true,
+            isDisabled: areWritesDisabled,
         },
-        ...postAndSendActions(onPostAndSend),
+        ...postAndSendActions(onPostAndSend, areWritesDisabled),
         {
             id: 'post-new',
             label: 'Post & new',
@@ -281,13 +296,14 @@ export function DocumentActionBar({
             onPress: onPostAndNew,
             isServerAction: true,
             wideOnly: true,
+            isDisabled: areWritesDisabled,
         },
     ]
     const deleteDraft: DocumentMoreItem = {
         id: 'delete-draft',
         label: 'Delete draft',
         keys: DELETE_DRAFT_HINT,
-        isDisabled: writeState.isDisabled,
+        isDisabled: writeState.isDisabled || areWritesDisabled,
         onSelect: onDeleteDraft,
     }
     const draftRows = canDeleteDraft ? [deleteDraft] : []
@@ -297,6 +313,73 @@ export function DocumentActionBar({
             isSaving={isSaving}
             isPhone={isPhone}
             moreItems={[...draftRows, ...moreItems]}
+            scopeOwner={scopeOwner}
+        />
+    )
+}
+
+export interface CorrectionBarProps {
+    isSaving: boolean
+    // A stored correction draft (a correction whose post was refused after its header was
+    // written): More then holds Delete draft.
+    canDeleteDraft: boolean
+    isPhone: boolean
+    onCancel: () => void
+    onPost: () => void
+    onDeleteDraft: () => void
+    // The button that posts the correction: a deposit's is Save (`save`), an inventory
+    // adjustment's is Post (`post`).
+    post: { id: string; label: string }
+    // Post and Delete draft wait; Cancel stays (an inventory adjustment's draft that changed
+    // elsewhere).
+    areWritesDisabled?: boolean
+    scopeOwner: ScopeOwner
+}
+
+/**
+ * A correction's bar (the edit of a posted deposit or inventory adjustment): Cancel (Esc)
+ * and the button that posts the correction (⌘↵) only, with no Save draft and no Post & new,
+ * so no path saves a correction as a draft; on a stored correction draft More holds Delete
+ * draft (⌘⌫, registered by the screen).
+ */
+export function CorrectionBar({
+    isSaving,
+    canDeleteDraft,
+    isPhone,
+    onCancel,
+    onPost,
+    onDeleteDraft,
+    post,
+    areWritesDisabled = false,
+    scopeOwner,
+}: CorrectionBarProps) {
+    const writeState = useServerActionState({ isDisabled: isSaving })
+    const actions: DocumentBarAction[] = [
+        { id: 'cancel', label: 'Cancel', keys: FORM_KEYS.cancel, onPress: onCancel },
+        {
+            id: post.id,
+            label: post.label,
+            keys: FORM_KEYS.post,
+            onPress: onPost,
+            isPrimary: true,
+            isServerAction: true,
+            isDisabled: areWritesDisabled,
+        },
+    ]
+    const deleteDraft: DocumentMoreItem = {
+        id: 'delete-draft',
+        label: 'Delete draft',
+        keys: DELETE_DRAFT_HINT,
+        isDisabled: writeState.isDisabled || areWritesDisabled,
+        onSelect: onDeleteDraft,
+    }
+    const moreItems = canDeleteDraft ? [deleteDraft] : []
+    return (
+        <DocumentBar
+            actions={actions}
+            isSaving={isSaving}
+            isPhone={isPhone}
+            moreItems={moreItems}
             scopeOwner={scopeOwner}
         />
     )

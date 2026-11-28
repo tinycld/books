@@ -15,10 +15,12 @@ import {
     adjustmentEntries,
     adjustmentLineCell,
     adjustmentLineCount,
+    adjustmentMenuOption,
     listSettled,
     makeInventoryItem,
     NEW_ADJUSTMENT_URL,
     openNewAdjustment,
+    pickAdjustmentItem as pickItem,
     postAdjustment,
     searchAdjustments,
     shown,
@@ -57,7 +59,6 @@ const ADJUSTMENT_RECORD = '**/api/collections/books_inventory_adjustments/record
 // The Item picker of a line (spec §3.3 "Item: a picker of active Inventory items"; the
 // reference's texts).
 const ITEM_PLACEHOLDER = 'Choose an item'
-const ITEM_SEARCH_PLACEHOLDER = 'Search items'
 
 function binName(id: string): string {
     const bin = BINS.find(row => row.id === id)
@@ -84,34 +85,14 @@ function readLines(page: Page) {
     return readView(page).locator('[data-testid^="adjustment-read-line-"]')
 }
 
-// A row of an open picker menu whose whole label is `label`.
-function menuOption(page: Page, label: string) {
-    return page
-        .locator('[role="menuitem"], [role="menuitemcheckbox"]')
-        .filter({ has: page.getByText(label, { exact: true }), visible: true })
-}
-
 // The line's Item picker holds the focus: typing opens its search with the text, and
 // Enter picks the first match.
 async function pickItemByTyping(page: Page, index: number, name: string) {
     await expect(adjustmentLineCell(page, index, 'item')).toBeFocused()
     await page.keyboard.type(name)
-    await expect(menuOption(page, name)).toBeVisible()
+    await expect(adjustmentMenuOption(page, name)).toBeVisible()
     await page.keyboard.press('Enter')
     await expect(adjustmentLineCell(page, index, 'item')).toContainText(name)
-}
-
-// Opens the line's Item picker by a press, searches and presses the item.
-async function pickItem(page: Page, index: number, name: string) {
-    const trigger = adjustmentLineCell(page, index, 'item')
-    await trigger.click()
-    const search = page.getByTestId(`inventory-adjustment-line-item-${index}-search`)
-    await expect(search).toBeFocused()
-    // The picker lists Inventory items only, and says so.
-    await expect(search).toHaveAttribute('placeholder', ITEM_SEARCH_PLACEHOLDER)
-    await search.fill(name)
-    await menuOption(page, name).click()
-    await expect(trigger).toContainText(name)
 }
 
 // The list, searched by the memo, with its one row pressed: the adjustment opens.
@@ -464,7 +445,7 @@ test.describe('inventory-adjust: form', () => {
         await expect(bin).not.toHaveAttribute('aria-disabled', 'true')
         const frontCounter = binName(BIN_IDS.frontCounter)
         await bin.click()
-        await menuOption(page, frontCounter).click()
+        await adjustmentMenuOption(page, frontCounter).click()
         await expect(bin).toContainText(frontCounter)
         await adjustmentLineCell(page, 0, 'value').fill('5.00')
         const number = await postAdjustment(page)

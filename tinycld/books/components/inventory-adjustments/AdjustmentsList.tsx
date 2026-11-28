@@ -1,6 +1,8 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { useState } from 'react'
 import { View } from 'react-native'
+import { useAdjustmentDelete, useAdjustmentVoid } from '../../hooks/useAdjustmentReadActions'
 import {
     type AdjustmentListRow,
     type AdjustmentListSort,
@@ -11,6 +13,11 @@ import { useFitsTable } from '../../hooks/useFitsTable'
 import { useListFilters } from '../../hooks/useListFilters'
 import { useRecordList } from '../../hooks/useRecordList'
 import { useRecordNavigation } from '../../hooks/useRecordNavigation'
+import {
+    type AdjustmentRowMenuAction,
+    adjustmentRowActionWrites,
+    adjustmentRowMenuItems,
+} from '../../lib/adjustment-actions'
 import {
     ADJUSTMENT_COLUMNS,
     ADJUSTMENT_ROW_MENU_WIDTH,
@@ -27,6 +34,7 @@ import { InventoryTabStrip } from '../products/InventoryTabStrip'
 import { RecordListFrame } from '../RecordListFrame'
 import { RecordRowMenu } from '../RecordRowMenu'
 import { AdjustmentCard } from './AdjustmentCard'
+import { AdjustmentDeleteDialog, AdjustmentVoidDialog } from './AdjustmentDialogs'
 import { AdjustmentRow } from './AdjustmentRow'
 import { AdjustmentsToolbar } from './AdjustmentsToolbar'
 import {
@@ -50,19 +58,36 @@ const LOAD_ERROR = 'Could not load inventory adjustments'
 
 const DEFAULT_SORT: AdjustmentListSort = { key: 'date', isAscending: false }
 
-// The row menu: Open, and Edit on a draft for a writer (it opens the draft's form). Copy,
-// Void and Delete come with the draft actions.
-type AdjustmentMenuItem = 'open' | 'edit'
-const MENU_LABELS: Record<AdjustmentMenuItem, string> = { open: 'Open', edit: 'Edit' }
-const MENU_TEST_IDS: Record<AdjustmentMenuItem, string> = {
+// The row menu (spec §3.5) as adjustmentRowMenuItems offers it: Open; for a writer on a
+// manual adjustment Edit (a draft's form, or the correction of a posted one not replaced),
+// Copy, and Void (posted) or Delete (draft).
+const MENU_ACTIONS: readonly AdjustmentRowMenuAction[] = ['open', 'edit', 'copy', 'void', 'delete']
+const MENU_LABELS: Record<AdjustmentRowMenuAction, string> = {
+    open: 'Open',
+    edit: 'Edit',
+    copy: 'Copy',
+    void: 'Void',
+    delete: 'Delete',
+}
+const MENU_TEST_IDS: Record<AdjustmentRowMenuAction, string> = {
     open: 'inventory-adjustment-menu-open',
     edit: 'inventory-adjustment-menu-edit',
+    copy: 'inventory-adjustment-menu-copy',
+    void: 'inventory-adjustment-menu-void',
+    delete: 'inventory-adjustment-menu-delete',
 }
-// Open and Edit start no write, so neither waits for one.
-const MENU_WRITES: ReadonlySet<string> = new Set()
+// Void and Delete write from the list: they wait while a write runs or writes are
+// unavailable (adjustmentRowActionWrites).
+const MENU_WRITES: ReadonlySet<string> = new Set(MENU_ACTIONS.filter(adjustmentRowActionWrites))
+const MENU_DESTRUCTIVE: ReadonlySet<string> = new Set(['void', 'delete'])
 
-function menuItemsOf(row: AdjustmentListRow, canWrite: boolean): AdjustmentMenuItem[] {
-    return canWrite && row.status === 'draft' ? ['open', 'edit'] : ['open']
+function menuItemsOf(row: AdjustmentListRow, canWrite: boolean): AdjustmentRowMenuAction[] {
+    return adjustmentRowMenuItems({
+        status: row.status,
+        kind: row.kind,
+        replacedBy: row.replaced_by,
+        canWrite,
+    })
 }
 
 const MENU_SLOT_STYLE = { width: ADJUSTMENT_ROW_MENU_WIDTH, flexShrink: 0 }
@@ -121,8 +146,10 @@ function AdjustmentsHeader({ sort, onSort }: HeaderProps) {
  * The inventory adjustments list (inventory-adjust spec §3.5), the second tab of Products
  * and services: the search, the status chips and Made by Books in the query
  * (useAdjustmentsQuery), the table with its sortable Date, No. and Value change headers
- * where it fits (754 px of its own width) and cards below it. The open adjustment
- * (`openId`, from the URL) is marked on the panel surface.
+ * where it fits (754 px of its own width) and cards below it, each row with its menu
+ * (Open, Edit, Copy, Void, Delete as offered; Void and Delete confirm in a dialog and wait
+ * while writes are unavailable). The open adjustment (`openId`, from the URL) is marked on
+ * the panel surface.
  */
 export function AdjustmentsList({ openId }: { openId: string }) {
     const navigation = useRecordNavigation(ADJUSTMENTS_PATH)
@@ -152,18 +179,46 @@ export function AdjustmentsList({ openId }: { openId: string }) {
     const loadError = list.viewState === 'error' ? LOAD_ERROR : null
     const onSort = (key: AdjustmentSort) => setSort(current => nextSort(current, key))
     const toggleMadeByBooks = () => setMadeByBooks(on => !on)
+    const writesAvailable = useWritesAvailable().available
+    // The list's Void keeps a refusal in its dialog; Delete removes the row from the list.
+    // A Delete of the draft open beside the list holds it in the save store, so its form
+    // does not read the delete as someone else's, and then closes the panel to the list.
+    const voiding = useAdjustmentVoid('dialog')
+    const isOpen = (id: string) => id === openId
+    const closeDeleted = (id: string) => {
+        if (isOpen(id)) navigation.leave()
+    }
+    const deleting = useAdjustmentDelete({ holds: isOpen, onDeleted: closeDeleted })
+    const isWriting = voiding.isPending || deleting.isPending || !writesAvailable
+    const selectFor = (row: AdjustmentListRow) => (action: AdjustmentRowMenuAction) => {
+        const target = { id: row.id, number: row.number }
+        if (action === 'open') navigation.open(row.id)
+        // A draft's Edit is its form; a posted one's is its correction.
+        else if (action === 'edit' && row.status === 'draft') navigation.open(row.id)
+        else if (action === 'edit') navigation.openNew({ replaces: row.id })
+        else if (action === 'copy') navigation.openNew({ copy: row.id })
+        else if (action === 'void') voiding.open(target)
+        else deleting.open(target)
+    }
     const menuFor = (row: AdjustmentListRow) => (
-        <RecordRowMenu<AdjustmentMenuItem>
+        <RecordRowMenu<AdjustmentRowMenuAction>
             title={row.number || 'Inventory adjustment'}
             triggerTestId={`inventory-adjustment-menu-${row.id}`}
             triggerLabel="Inventory adjustment actions"
             items={menuItemsOf(row, canWrite)}
             labels={MENU_LABELS}
             testIds={MENU_TEST_IDS}
-            onSelect={() => navigation.open(row.id)}
-            isWriting={false}
+            onSelect={selectFor(row)}
+            isWriting={isWriting}
             writes={MENU_WRITES}
+            destructive={MENU_DESTRUCTIVE}
         />
+    )
+    const dialogs = (
+        <>
+            <AdjustmentVoidDialog state={voiding.dialog} />
+            <AdjustmentDeleteDialog state={deleting.dialog} />
+        </>
     )
     const cards = (
         <ListCards<AdjustmentListRow>
@@ -243,7 +298,7 @@ export function AdjustmentsList({ openId }: { openId: string }) {
             onDismissBanner={keepBanner}
             renderTable={renderTable}
             renderCards={renderCards}
-            dialog={null}
+            dialog={dialogs}
             tabs={<InventoryTabStrip selected="adjustments" />}
             toolbar={toolbar}
             keepsToolbarWhenEmpty={source.hasBooksMade}

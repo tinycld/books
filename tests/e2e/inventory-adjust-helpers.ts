@@ -158,6 +158,40 @@ export async function adjustmentNumberOf(page: Page): Promise<string> {
     return (await title.innerText()).replace('Inventory adjustment ', '')
 }
 
+// A row of an open picker menu whose whole label is `label`.
+export function adjustmentMenuOption(page: Page, label: string): Locator {
+    return page
+        .locator('[role="menuitem"], [role="menuitemcheckbox"]')
+        .filter({ has: page.getByText(label, { exact: true }), visible: true })
+}
+
+// The Item picker search text of a line (spec §3.3 "Item: a picker of active Inventory
+// items"; the reference's text).
+export const ITEM_SEARCH_PLACEHOLDER = 'Search items'
+
+// The shown form must hold line `index`. Opens its Item picker by a press, searches and
+// presses the item.
+export async function pickAdjustmentItem(page: Page, index: number, name: string) {
+    const trigger = adjustmentLineCell(page, index, 'item')
+    await trigger.click()
+    const search = page.getByTestId(`inventory-adjustment-line-item-${index}-search`)
+    await expect(search).toBeFocused()
+    // The picker lists Inventory items only, and says so.
+    await expect(search).toHaveAttribute('placeholder', ITEM_SEARCH_PLACEHOLDER)
+    await search.fill(name)
+    await adjustmentMenuOption(page, name).click()
+    await expect(trigger).toContainText(name)
+}
+
+// The id in the URL of the shown adjustment's own screen (`…/inventory-adjustments/<id>`).
+export function adjustmentIdFromUrl(page: Page): string {
+    const match = /\/books\/inventory-adjustments\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
+    if (!match?.[1] || match[1] === 'new') {
+        throw new Error(`the URL ${page.url()} is no saved inventory adjustment`)
+    }
+    return match[1]
+}
+
 // Presses Post on the shown form and waits for the posted adjustment's read view. Returns
 // its number.
 export async function postAdjustment(page: Page): Promise<string> {

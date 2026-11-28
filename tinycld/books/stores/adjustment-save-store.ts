@@ -28,6 +28,28 @@ interface AdjustmentSaveState {
     holding: AdjustmentHold | null
     hold: (hold: AdjustmentHold) => void
     release: () => void
+    // The posted adjustment a correction form's own post corrects (`?replaces`). Set before
+    // the mutation, so the screen keeps the form while the server voids the original in the
+    // same post; cleared by a refusal, or, after a post that worked, when that form unmounts
+    // (it is moving on to the new adjustment's read view then). The deposit's
+    // (stores/deposit-save-store.ts).
+    correcting: string | null
+    startCorrecting: (original: string) => void
+    stopCorrecting: (original: string) => void
+    // The stored draft whose form shows (spec §3.13): only that form turns stale when
+    // someone else posts or deletes the draft. Set when the draft's form mounts, cleared
+    // when it unmounts, and by this person's own post or delete of the draft that worked
+    // (before the hold ends, so the own write never reads as stale).
+    shownDraft: string | null
+    showDraft: (id: string) => void
+    hideDraft: (id: string) => void
+    // The draft this person's delete removed, set before the delete's move: its open form
+    // turns its leave guard off, so the move goes on and the deleted edits are not asked
+    // about. Cleared when that form unmounts; a draft deleted with no open form keeps its id
+    // until the next delete, which is harmless: a deleted id's form never mounts again.
+    deleted: string | null
+    markDeleted: (id: string) => void
+    clearDeleted: (id: string) => void
     refused: AdjustmentRefusedSave | null
     handOff: (refused: AdjustmentRefusedSave) => void
     // The draft's form that started from the hand-off has gone.
@@ -43,6 +65,16 @@ export const useAdjustmentSaveStore = create<AdjustmentSaveState>()(set => ({
     holding: null,
     hold: hold => set({ holding: hold }),
     release: () => set({ holding: null }),
+    correcting: null,
+    startCorrecting: original => set({ correcting: original }),
+    stopCorrecting: original =>
+        set(state => (state.correcting === original ? { correcting: null } : {})),
+    shownDraft: null,
+    showDraft: id => set({ shownDraft: id }),
+    hideDraft: id => set(state => (state.shownDraft === id ? { shownDraft: null } : {})),
+    deleted: null,
+    markDeleted: id => set({ deleted: id }),
+    clearDeleted: id => set(state => (state.deleted === id ? { deleted: null } : {})),
     refused: null,
     handOff: refused => set({ refused }),
     clearRefused: () => set({ refused: null }),
