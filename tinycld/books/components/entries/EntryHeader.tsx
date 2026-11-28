@@ -13,18 +13,23 @@ interface BackLinkProps {
     label: string
     testID: string
     onPress(): void
+    // Off while the form's write runs, as its Cancel is.
+    disabled?: boolean
 }
 
 // A header's back link, "← Journal entries": the caller gives the press (a form passes its
 // leave guard).
-export function BackLink({ label, testID, onPress }: BackLinkProps) {
+export function BackLink({ label, testID, onPress, disabled = false }: BackLinkProps) {
     const color = useThemeColor('muted-foreground')
+    const dim = disabled ? 'opacity-60' : ''
     return (
         <Pressable
             testID={testID}
             accessibilityRole="link"
             onPress={onPress}
-            className="flex-row items-center gap-1 self-start"
+            disabled={disabled}
+            aria-disabled={disabled}
+            className={`flex-row items-center gap-1 self-start ${dim}`}
             style={{ minHeight: 44 }}
         >
             <ArrowLeft size={16} color={color} />

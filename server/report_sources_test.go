@@ -55,6 +55,8 @@ var booksSourceKeys = []string{
 	"books.accounts",
 	"books.audit_log",
 	"books.basis_lines",
+	"books.bin_stock",
+	"books.bins",
 	"books.cash_basis_balances",
 	"books.customers",
 	"books.journal_entries",
@@ -717,11 +719,18 @@ func expectedCatalog(t *testing.T) []wantSource {
 				money("stock_value"),
 				{key: "reorder_point", typ: reports.Number, aggs: reports.MinMax},
 				{key: "quantity_on_po", typ: reports.Number, aggs: reports.SumAll},
+				// Inventory-adjust spec §4: "Low stock".
+				boolField("low_stock"),
+				// Inventory-adjust spec §3.9: Stock by Bin Location labels its
+				// rows "<code> · <name>" and orders them by Item code.
+				{key: "code", typ: reports.Text, label: "Code"},
 			},
 			links: []wantLink{
 				toOne("income_account", "books.accounts", "income_account"),
 				toOne("asset_account", "books.accounts", "asset_account"),
 				toOne("preferred_vendor", "books.vendors", "preferred_vendor"),
+				// Inventory-adjust spec §4: "Default bin".
+				toOne("default_bin", "books.bins", "default_bin"),
 				toMany("stock_moves", "books.stock_moves", "product"),
 				toMany("stock_layers", "books.stock_layers", "product"),
 				toMany("sales_lines", "books.sales_lines", "product"),
@@ -750,11 +759,37 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "quantity_after", typ: reports.Number, aggs: reports.MinMax},
 				{key: "value_after", typ: reports.Money, aggs: reports.MinMax, currency: "currency"},
 				text("currency"),
+				// Inventory-adjust spec §4: "Document number".
+				{key: "document_number", typ: reports.Text, anyAggs: true},
 			},
 			links: []wantLink{
 				toOne("product", "books.products", "product"),
 				toOne("asset_account", "books.accounts", "asset_account"),
 				toOne("offset_account", "books.accounts", "offset_account"),
+				// Inventory-adjust spec §4: "Bin".
+				toOne("bin", "books.bins", "bin"),
+			},
+		},
+		{
+			// Inventory-adjust spec §4: the bin locations (name, note,
+			// inactive); sort_key is left out.
+			key: "books.bins", collection: "books_bins", label: "Bin locations",
+			fields: []wantField{
+				{key: "name", typ: reports.Text, anyAggs: true},
+				{key: "note", typ: reports.Text, anyAggs: true},
+				boolField("inactive"),
+			},
+		},
+		{
+			// Inventory-adjust spec §4: the quantity of each item in each bin;
+			// a blank bin is No bin.
+			key: "books.bin_stock", collection: "books_bin_stock", label: "Bin stock",
+			fields: []wantField{
+				{key: "quantity", typ: reports.Number, anyAggs: true},
+			},
+			links: []wantLink{
+				toOne("product", "books.products", "product"),
+				toOne("bin", "books.bins", "bin"),
 			},
 		},
 		{
@@ -1756,28 +1791,35 @@ func TestSettingsSource(t *testing.T) {
 // record type to the record filter.
 // books.audit_log was recorded again when purchase-orders added its Purchase
 // order and Purchase order line record types.
+// books.audit_log was recorded again when inventory-adjust added its Bin
+// location and Move between bins record types.
 // books.open_purchase_orders was recorded when purchase-orders shipped it,
 // with its detail opening the order by its number key.
+// The detail open paths were recorded again when inventory-adjust added its
+// `inventory_adjustment` route row (same Revision).
+// books.stock_by_bin was recorded when inventory-adjust shipped it, with no
+// Total row (NoTotal), and recorded again in its checkpoint 9 fix round 1.
 var shippedSpecSHA256 = map[string]string{
-	"books.trial_balance":             "c4658b6cccf9ce33c811e1c05210c9b2025fdc02474d79c14971e8206d4ed845",
-	"books.general_ledger":            "67c9c096f3c741d0ba726bbca28999f11ba625a8b4ca6c85590826d38ed672a7",
+	"books.trial_balance":             "ca0934c2a82698e84846cdd346a0bdaf3d99c323e63fcd47f259249219e19467",
+	"books.general_ledger":            "ec5506892fa9ac4430346105641f570161d3b5abb650db8fa464add26af4e7ee",
 	"books.balance_sheet":             "e0313a980a11913fc30b8ae9ac1f20ebbd953f22d5e0758870ba3c923c4e91a6",
-	"books.journal":                   "2345e225c7befda4cc4f932a61168aa83be2f5db1b4bbb446a82321cd8c8666c",
-	"books.profit_and_loss":           "63f091c4757a288973e70024c2c0d8f0633689d62d8e1fe1dbf364a08755d9d4",
+	"books.journal":                   "e7d5924118679911357c71457663c519f99b7a9584ff796913b15624d8d005e0",
+	"books.profit_and_loss":           "b9d09b50df22b65f72fa1f6d2171e4d7ab8d3cbd7756a30f9c4e7f2ae2b59323",
 	"books.profit_and_loss_by_month":  "89a1cca7d61b825eef13dcb9a3ae6b1821a727fad0442cdc8a0064e0f45e5983",
-	"books.transaction_detail":        "07eb3316b6b9eb9754af96d0faf8e3fcc992d82319db194c5e893bc5d2628d38",
+	"books.transaction_detail":        "62489e3089dceb4414b8dea32dbcc2c3bb36bb867fe6ece2a5c957fbf760d3a1",
 	"books.sales_tax_liability":       "a0d4357d9a465378d2baa60a28613a3092242063d289dda2f019606918be6578",
-	"books.customer_balance":          "120856536d6ff1435a7c184575fa451be85b66e7654fef561e52255db102fa14",
-	"books.ar_aging":                  "28bc06fd8038e41835954f583a4b2f26c3973e5a144bf3f92163728d2fee20bd",
-	"books.ap_aging":                  "fb9cd1d0d49bf336a36d40140462941e54d0d173f59fccc79d5cba9e738aa5a0",
-	"books.vendor_balance":            "f52f95804fe43978b579e697e39d79cd31a5d5188e1ee86812bdee46933e27b1",
-	"books.expenses_by_vendor":        "d75522fb1eb74e3ddb0e1c25499b7e7b5efea49639a99ae317c197e383c6037f",
+	"books.customer_balance":          "85f4fc704ea66b7141b279d340932771dc920120b03b8fde589cf85bf02dacae",
+	"books.ar_aging":                  "cca69d832778b6c1f8412d561be803e025716e35f76bde90f0935533738db00c",
+	"books.ap_aging":                  "d239ea47f81c659b11835d1db013b0a2a77e313aad98fe921c8990d0ce3fe2fb",
+	"books.vendor_balance":            "6f1efad0991e511d8da97bd650d7f7998fcaebba484ee9e998cd22034ea8a85f",
+	"books.expenses_by_vendor":        "c3dc57b0e20bce7d91035ad64c3fb4d95d4330d43d86b30c7533810b2ac51fa8",
 	"books.sales_by_customer":         "a1814d08b15a4ee1385f9ddd05e45c330f209ea61acbab008750339ae791a77b",
 	"books.sales_by_product":          "fe28d32dd0292f0344905c0147f1b8dd10d4d49e40feaf20fcbfcedcf7cc99b3",
-	"books.audit_log":                 "762b4af2bba3af594b97f4127eb4ea3487db37ddb52222279acdc0c19967617c",
-	"books.statement_balance_forward": "c0459c2938192ce4421c0fcea148832ee465ca8c3f664c6cea21a018b5ee45ed",
-	"books.statement_open_items":      "95a8a5e99e84aeebf65467f85aa1b94a0549dd7e5653ec20814401943789d9a7",
+	"books.audit_log":                 "5f500348d41281446830e0a9faa7257562833c49f33dee52dce52932932f0201",
+	"books.statement_balance_forward": "401cda8e834748a07211f7edd153049bfe47895e36ab3769bc141c37af2ad118",
+	"books.statement_open_items":      "3750641961b4253d572d83d623c4db2f2b9571511de3ae1b206b4ee7e2f595e9",
 	"books.open_purchase_orders":      "1d6a39da1021b9e038dba4a50df4e68b66fb495bf918a3f74fb59b50865a8886",
+	"books.stock_by_bin":              "487077f3630d9076d3a16129ec923e77a3bc7113ceb0585ad835594664fd2730",
 }
 
 func TestSourceAdditionsKeepShippedSpecs(t *testing.T) {
@@ -1787,7 +1829,7 @@ func TestSourceAdditionsKeepShippedSpecs(t *testing.T) {
 		salesTaxLiabilityShipped(), customerBalanceShipped(), arAgingShipped(), apAgingShipped(),
 		vendorBalanceShipped(), expensesByVendorShipped(), salesByCustomerShipped(), salesByProductShipped(),
 		auditLogShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
-		openPurchaseOrdersReport(),
+		openPurchaseOrdersReport(), stockByBinReport(),
 	}
 	if len(shipped) != len(shippedSpecSHA256) {
 		t.Errorf("%d shipped reports, %d recorded sums", len(shipped), len(shippedSpecSHA256))

@@ -273,6 +273,7 @@ func TestTrialBalanceSpecLoads(t *testing.T) {
 	// The whole spec, as core reads it. A change to it is a new revision.
 	// The bank-deposit unit added the deposit route row the detail open path
 	// reads (same Revision, as for the Customer Balance and A/R Aging pins).
+	// The inventory-adjust unit added its route row the same way (same Revision).
 	golden, err := os.ReadFile("testdata/trial_balance_spec.golden.json")
 	if err != nil {
 		t.Fatal(err)

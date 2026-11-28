@@ -37,6 +37,9 @@ export type RecordKind = {
     afterSave?: 'list' | 'record'
     // A test id clicked after a record opens, when its form sits on a tab of the page.
     formTab?: string
+    // The test id of a record page that keeps one id on every surface (an Inventory
+    // item's `item-page`), over the list or beside it, where it has no back button.
+    recordPage?: string
 }
 
 // Wide enough for the panel surface (DETAIL_PANEL_MIN_WINDOW is 1360).
@@ -462,12 +465,19 @@ export function recordFormHelpers(kind: RecordKind) {
         return entries(page).filter({ has: page.getByText(name, { exact: true }) })
     }
 
-    // The record's page or panel, whichever is shown.
+    // The record's page or panel, whichever is shown (a kind's record page too).
     function surface(page: Page): Locator {
-        return page
+        const shown = page
             .getByTestId(`${recordPrefix}-page`)
             .or(page.getByTestId(`${recordPrefix}-panel`))
-            .filter({ visible: true })
+        const withRecordPage = kind.recordPage ? shown.or(page.getByTestId(kind.recordPage)) : shown
+        return withRecordPage.filter({ visible: true })
+    }
+
+    // The kind's shown record page (`recordPage`), or null for a kind with none.
+    async function isRecordPageShown(page: Page): Promise<boolean> {
+        if (!kind.recordPage) return false
+        return page.getByTestId(kind.recordPage).filter({ visible: true }).isVisible()
     }
 
     // From anywhere in Books to the list, with no record open.
@@ -499,8 +509,8 @@ export function recordFormHelpers(kind: RecordKind) {
         // reading both again on each poll, instead of trusting one read of the URL.
         const recordPath = new RegExp(`/books/${kind.pathSegment}/[^/]+$`)
         const wayOut = pageBack.or(panelClose).or(notFoundBack).filter({ visible: true }).first()
-        // A record page beside the list (very wide window) has no back button: its title
-        // shows that it arrived.
+        // A record page beside the list (very wide window) has no back button: its title,
+        // or the kind's record page, shows that it arrived.
         const recordTitle = page.getByTestId(`${recordPrefix}-title`)
         const hasRecordPage = kind.afterSave === 'record'
         await expect
@@ -508,7 +518,8 @@ export function recordFormHelpers(kind: RecordKind) {
                 async () =>
                     (await wayOut.isVisible()) ||
                     !recordPath.test(new URL(page.url()).pathname) ||
-                    (hasRecordPage && (await recordTitle.isVisible()))
+                    (hasRecordPage && (await recordTitle.isVisible())) ||
+                    (await isRecordPageShown(page))
             )
             .toBe(true)
 
@@ -525,11 +536,9 @@ export function recordFormHelpers(kind: RecordKind) {
             }
         }
         // The page beside the list leaves on Escape while nothing is dirty.
-        if (
-            hasRecordPage &&
-            recordPath.test(new URL(page.url()).pathname) &&
-            (await recordTitle.isVisible())
-        ) {
+        const isPageBeside =
+            (hasRecordPage && (await recordTitle.isVisible())) || (await isRecordPageShown(page))
+        if (recordPath.test(new URL(page.url()).pathname) && isPageBeside) {
             await pressEscapeOutsideInputs(page)
             await expect(page).not.toHaveURL(recordPath)
         }

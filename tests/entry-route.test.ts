@@ -384,6 +384,22 @@ describe('a deposit entry', () => {
     })
 })
 
+// An inventory adjustment's entry (inventory-adjust spec §3.5): Journal Entries, the
+// registers and report drills open it on the adjustment's read view, by its number once
+// posted; its void reversal opens as an entry.
+describe('an inventory adjustment entry', () => {
+    it('opens on its adjustment, and its void reversal as an entry', () => {
+        expect(entryHref(entry('inventory_adjustment', 'document', 'iadj1'))).toBe(
+            'books/inventory-adjustments/iadj1'
+        )
+        expect(entryHref(entry('inventory_adjustment', 'document', 'iadj1', 5))).toBe(
+            'books/inventory-adjustments/5'
+        )
+        expect(entryHref(entry('inventory_adjustment', 'void_reversal'))).toBe('books/entries/a')
+        expect(DOCUMENT_ROUTES.get('inventory_adjustment')).toBe('books/inventory-adjustments')
+    })
+})
+
 // A bill payment's entry (pay-bills spec §4.2): it opens on its bill payment.
 describe('a bill payment entry', () => {
     it('opens on its bill payment', () => {

@@ -5,33 +5,16 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { router, useIsFocused } from 'expo-router'
 import { useEffect, useRef } from 'react'
+import { DOCUMENT_SCREENS, type DocumentCollectionName } from '../lib/document-screens'
 import type { CodedCollectionName } from '../lib/record-code'
 import { codeUrlKey, documentKey, entryKey, parseCodeKey, parseRecordKey } from '../lib/record-key'
 import { useRouteKeyStore } from '../stores/route-key-store'
 
-// The numbered document collections whose route takes a URL key (lib/record-key.ts), with
-// the name the stack gives the route's screen.
-const DOCUMENT_SCREENS = {
-    books_invoices: 'invoices/[id]',
-    books_estimates: 'estimates/[id]',
-    books_purchase_orders: 'purchase-orders/[id]',
-    books_sales_receipts: 'sales-receipts/[id]',
-    books_payments: 'payments/[id]',
-    books_credit_memos: 'credit-memos/[id]',
-    books_refund_receipts: 'refund-receipts/[id]',
-    books_statements: 'statements/[id]',
-    books_bills: 'bills/[id]',
-    books_expenses: 'expenses/[id]',
-    books_bill_payments: 'bill-payments/[id]',
-    books_vendor_credits: 'vendor-credits/[id]',
-    books_vendor_refunds: 'vendor-refunds/[id]',
-    books_deposits: 'deposits/[id]',
-    books_write_offs: 'write-offs/[id]',
-} as const
+// The numbered document collections whose route takes a URL key live in
+// lib/document-screens.ts, which a lib reads with no React import.
+export { DOCUMENT_SCREENS, type DocumentCollectionName } from '../lib/document-screens'
 
-export type DocumentCollectionName = keyof typeof DOCUMENT_SCREENS
-
-const ENTRY_SCREENS = { journal: 'entries/[id]', transfer: 'transfers/[id]' } as const
+export const ENTRY_SCREENS = { journal: 'entries/[id]', transfer: 'transfers/[id]' } as const
 
 // The collections whose route takes a code (lib/record-code.ts), with the stack's screen name.
 const CODE_SCREENS = {

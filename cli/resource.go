@@ -50,6 +50,10 @@ type field struct {
 	Required bool `json:"required,omitempty"`
 	// ReadOnly: the server sets the value; the CLI refuses it in --input.
 	ReadOnly bool `json:"readOnly,omitempty"`
+	// CreateOnly: `add` takes the value and `edit` refuses it. Only the
+	// `replaces` of a document header has it (an inventory adjustment's: `add`
+	// corrects a posted one); every other `replaces` is read-only.
+	CreateOnly bool `json:"createOnly,omitempty"`
 	// Generated: the schema requires a value, but the server makes one from the record
 	// when the caller gives none (a record code), so the caller is never asked for it.
 	Generated bool `json:"generated,omitempty"`
@@ -180,6 +184,9 @@ func loadResources(data []byte) ([]resource, error) {
 		}
 		seen[res.Name] = true
 		if err := checkResource(res, names); err != nil {
+			return nil, fmt.Errorf("resource %q: %w", res.Name, err)
+		}
+		if err := refuseCreateOnly(res); err != nil {
 			return nil, fmt.Errorf("resource %q: %w", res.Name, err)
 		}
 	}
@@ -328,6 +335,23 @@ func checkField(f *field, names map[string]bool) error {
 	}
 	if f.ReadOnly && f.Generated {
 		return fmt.Errorf("a generated field takes the caller's value and cannot be read-only")
+	}
+	if f.CreateOnly && f.ReadOnly {
+		return fmt.Errorf("createOnly and readOnly: a createOnly field is one that `add` takes")
+	}
+	if f.CreateOnly && f.Name != "replaces" {
+		return fmt.Errorf("createOnly is for replaces only")
+	}
+	return nil
+}
+
+// refuseCreateOnly refuses a createOnly field outside a document header: a
+// list resource, a line table and a view have no `replaces` that `add` takes.
+func refuseCreateOnly(res *resource) error {
+	for i := range res.Fields {
+		if res.Fields[i].CreateOnly {
+			return fmt.Errorf("field %q: createOnly is for replaces only, of a document header", res.Fields[i].Name)
+		}
 	}
 	return nil
 }

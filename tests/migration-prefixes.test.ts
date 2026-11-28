@@ -54,6 +54,8 @@ const INVENTORY = '2100000038_create_books_inventory.js'
 
 const PURCHASE_ORDERS = '2100000048_create_books_purchase_orders.js'
 
+const BINS = '2100000049_create_books_bins.js'
+
 const RECONCILE_SUFFIX = '_create_books_reconciliations.js'
 
 const RECONCILE = MIGRATIONS.filter(file => file.endsWith(RECONCILE_SUFFIX))
@@ -97,6 +99,9 @@ const AFTER_AUDIT_FIELDS: string[] = [
     // because Books v0.0.1 shipped 2100000043, this migration rebuilds the view itself so
     // that it reads the order lines and the purchase order sends (see the test below).
     PURCHASE_ORDERS,
+    // Inventory-adjust spec §4: the bins, their stock and the moves between bins run
+    // after the view; the audit view reads none of them as a line collection.
+    BINS,
 ]
 
 // The migrations between the inventory migration and the audit view, in their order.
@@ -341,5 +346,16 @@ describe('pb-migrations prefixes', () => {
             created
         )
         expect(source).toContain("findCollectionByNameOrId('books_audit_log')")
+    })
+
+    // Inventory-adjust spec §4: one migration, 2100000049, creates the three bin
+    // collections, after the audit view, which reads none of them.
+    it('holds the bins at 2100000049, the one migration that creates the three bin collections', () => {
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000049')).toEqual([BINS])
+        for (const collection of ['books_bins', 'books_bin_stock', 'books_bin_transfers']) {
+            expect(creatorsOf(collection), collection).toEqual([BINS])
+            expect(auditLineCollections()).not.toContain(collection)
+        }
+        expect(numberOf(BINS)).toBeGreaterThan(numberOf(AUDIT))
     })
 })

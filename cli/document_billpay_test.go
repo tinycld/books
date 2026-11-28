@@ -189,7 +189,7 @@ func TestLoadDocumentsChecksATypeThatIsCreatedPosted(t *testing.T) {
 	}
 	cases := []struct{ old, next, want string }{
 		{`"enum": ["posted", "void"]`, `"enum": ["draft", "posted", "void"]`, "a document that is created posted has a read-only status with the values posted, void"},
-		{`"name": "replaces", "type": "id", "ref": "bill-payments"`, `"name": "replaces", "type": "id", "ref": "bills"`, "replaces is read-only, the id of a document of its own type"},
+		{`"name": "replaces", "type": "id", "ref": "bill-payments"`, `"name": "replaces", "type": "id", "ref": "bills"`, "replaces is the id of a document of its own type"},
 		{`"name": "currency", "type": "string"`, `"name": "revision", "type": "integer"`, "a document that is created posted has no revision"},
 	}
 	for _, tc := range cases {

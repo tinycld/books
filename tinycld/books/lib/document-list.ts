@@ -513,12 +513,23 @@ export function searchClauses(
     return searchFieldClauses([row.number, row.memo], search)
 }
 
+// Clauses that hold at least one clause: tsc refuses an empty list where `allOf` takes one.
+export type SomeClauses = readonly [Clause, ...Clause[]]
+
 // Every clause in one expression; `and` never gets one argument.
-export function allOf(clauses: readonly Clause[]): Clause {
+export function allOf(clauses: SomeClauses): Clause {
     const [first, second, ...rest] = clauses
-    if (first === undefined) throw new Error('allOf needs at least one clause')
     if (second === undefined) return first
     return and(first, second, ...rest)
+}
+
+// The clauses of a query whose `where` runs only when its own guard says a filter is set
+// (the estimates', the write-offs' and the purchase orders' queries, which have no listed
+// clause to lead the list). An empty list means the guard and the clauses disagree.
+export function someClauses(clauses: readonly Clause[]): SomeClauses {
+    const [first, ...rest] = clauses
+    if (first === undefined) throw new Error('a filtered query needs at least one clause')
+    return [first, ...rest]
 }
 
 // The column each kind sorts by for a sort key. A tab offers a key only when each of its

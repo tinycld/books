@@ -75,6 +75,19 @@ describe('shortcutChoices', () => {
         expect(ids(list)).toContain('register:acct_petty')
     })
 
+    // Inventory adjustment spec §2: the New group offers the adjustment form right after the
+    // product form, to a writer only.
+    it('offers New inventory adjustment right after New product or service, to a writer only', () => {
+        const forms = shortcutChoices([], input()).filter(choice => choice.group === 'New')
+        const formIds = forms.map(choice => choice.id)
+        expect(formIds.indexOf('new:inventory_adjustment')).toBe(formIds.indexOf('new:product') + 1)
+        expect(forms.find(choice => choice.id === 'new:inventory_adjustment')).toMatchObject({
+            label: 'New inventory adjustment',
+            shortcut: { kind: 'new', ref: 'inventory_adjustment' },
+        })
+        expect(ids([], false)).not.toContain('new:inventory_adjustment')
+    })
+
     it('offers no form to a reader', () => {
         const groups = shortcutChoices([], input(false)).map(choice => choice.group)
 

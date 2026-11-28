@@ -7,7 +7,8 @@ import { recordIdForKey } from '../stores/route-key-store'
 // (drafts included), the estimate screen, the purchase order screen, the
 // bill, expense and vendor credit screens (drafts included), the payment screen (drafts
 // included), the bill payment read view, the vendor refund screen (drafts included), the
-// write-off page, and the deposit screen (drafts included).
+// write-off page, the deposit screen (drafts included), and the inventory adjustment
+// screen (drafts included).
 export interface SearchTarget {
     path: string
     id: string
@@ -36,6 +37,7 @@ const PATHS = new Map([
     ['vendor_refund', 'books/vendor-refunds/[id]'],
     ['write_off', 'books/write-offs/[id]'],
     ['deposit', 'books/deposits/[id]'],
+    ['inventory_adjustment', 'books/inventory-adjustments/[id]'],
 ])
 
 export function searchTarget(rowId: string): SearchTarget | null {

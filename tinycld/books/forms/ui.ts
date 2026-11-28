@@ -36,10 +36,10 @@ import {
 import {
     AssetAccountField,
     CogsAccountField,
+    DefaultBinField,
     OpeningDateField,
     PreferredVendorField,
     QuantityField,
-    QuantityOnHandField,
 } from './inventory-fields'
 import { MoneyField } from './money-fields'
 import {
@@ -128,8 +128,8 @@ const ui: FormHostUi = {
         CogsAccountField,
         PreferredVendorField,
         QuantityField,
-        QuantityOnHandField,
         OpeningDateField,
+        DefaultBinField,
         CustomerNameField,
         CustomerCodeField,
         VendorNameField,

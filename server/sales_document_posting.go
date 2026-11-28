@@ -126,9 +126,11 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 			}
 		}
 	}
+	var stockMoves []*core.Record
 	if !ownLines {
 		// Before the entry: the cost of the document's stock is in its own entry.
-		costLines, err := salesDocStockLines(tx, kind, doc, original, lines, totals)
+		var costLines []postingLine
+		costLines, stockMoves, err = salesDocStockLines(tx, kind, doc, original, lines, totals)
 		if err != nil {
 			return err
 		}
@@ -164,6 +166,9 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	doc.Set("number", entry.GetString("number"))
 	doc.Set("sequence", entry.GetInt("sequence"))
 	doc.Set("entry", entry.Id)
+	if err := numberPostedMoves(tx, stockMoves, kind.Collection, doc.Id, doc.GetString("number")); err != nil {
+		return err
+	}
 	doc.Set("posted_at", now)
 	doc.Set("sort_key", salesDocSortKey(doc))
 	originalID := ""

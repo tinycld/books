@@ -2,6 +2,7 @@ package books
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -95,6 +96,177 @@ func TestWithdrawDocumentStock_TakesTheMovesAway(t *testing.T) {
 	if err != nil {
 		t.Errorf("withdraw of a document with no moves: %v", err)
 	}
+}
+
+// requireEveryMoveNumbered asserts the document has want stock moves and each
+// stores the document's number (spec §4 books_stock_moves.document_number).
+func requireEveryMoveNumbered(t testing.TB, app core.App, source, document string, want int) {
+	t.Helper()
+	number := reload(t, app, source, document).GetString("number")
+	if number == "" {
+		t.Fatalf("the posted %s %s has no number; the case needs one", source, document)
+	}
+	moves, err := documentStockMoves(app, source, document)
+	if err != nil || len(moves) != want {
+		t.Fatalf("%d stock moves of %s %s (err %v), want %d", len(moves), source, document, err, want)
+	}
+	for i, m := range moves {
+		if got := m.GetString("document_number"); got != number {
+			t.Errorf("stock move %d of %s has document_number %q, want %q", i+1, source, got, number)
+		}
+	}
+}
+
+// requireDocumentNumber asserts every stock move of the document stores number.
+func requireDocumentNumber(t testing.TB, app core.App, source, document, number string) {
+	t.Helper()
+	moves, err := documentStockMoves(app, source, document)
+	if err != nil || len(moves) == 0 {
+		t.Fatalf("%d stock moves of %s %s (err %v), want some", len(moves), source, document, err)
+	}
+	for i, m := range moves {
+		if got := m.GetString("document_number"); got != number {
+			t.Errorf("stock move %d of %s %s has document_number %q, want %q", i+1, source, document, got, number)
+		}
+	}
+}
+
+// postAdjustmentOf saves a manual draft adjustment of lines through the guards
+// and posts it as the bookkeeper; replaces names the adjustment it corrects
+// ("" for none).
+func postAdjustmentOf(t testing.TB, e *binStockEnv, date, replaces string, lines ...adjustmentLineInput) *core.Record {
+	t.Helper()
+	draft, err := saveNew(e.app, inventoryAdjustmentsCollection, map[string]any{
+		"status": statusDraft, "kind": adjustmentKindManual, "date": date, "replaces": replaces,
+	})
+	if err != nil {
+		t.Fatalf("save a draft adjustment: %v", err)
+	}
+	for i, l := range lines {
+		if _, err := saveNew(e.app, inventoryAdjustmentLinesCollection, map[string]any{
+			"adjustment": draft.Id, "product": l.Product, "quantity": l.Quantity, "value": l.Value, "bin": l.Bin, "position": i,
+		}); err != nil {
+			t.Fatalf("save adjustment line %d: %v", i+1, err)
+		}
+	}
+	if err := setFieldsOf(e.app, inventoryAdjustmentsCollection, draft.Id, map[string]any{
+		"status": statusPosted, "posted_by": e.users.bookkeeper.Id,
+	}); err != nil {
+		t.Fatalf("post the adjustment: %v", err)
+	}
+	return reload(t, e.app, inventoryAdjustmentsCollection, draft.Id)
+}
+
+// Spec §4: after a post, every stock move of an invoice, a bill and an
+// adjustment stores the document's number; an opening-stock move the number of
+// its opening adjustment.
+func TestStockMoves_CarryTheirDocumentsNumber(t *testing.T) {
+	e := newBinStockEnv(t)
+	gadget := e.gadget(t, e.aisle.Id)
+	opening := openingOf(t, e.app, gadget)
+	if opening == nil {
+		t.Fatal("no opening adjustment")
+	}
+	requireEveryMoveNumbered(t, e.app, inventoryAdjustmentsCollection, opening.Id, 1)
+
+	bill := mkBill(t, e.app, e.vendor, map[string]any{"date": "2026-07-02", "due_date": "2026-07-02"})
+	mkBillLine(t, e.app, bill, 0, productLine(gadget, 3, 300))
+	mkBillLine(t, e.app, bill, 1, productLine(gadget, 2, 350))
+	posted := mustPostBill(t, e.app, bill.Id, e.users.bookkeeper.Id)
+	requireEveryMoveNumbered(t, e.app, "books_bills", posted.Id, 2)
+
+	inv, err := newInvoice(e.app, e.customer, map[string]any{"date": "2026-07-03", "due_date": "2026-07-03"})
+	if err != nil {
+		t.Fatalf("save a draft invoice: %v", err)
+	}
+	mkInvoiceLine(t, e.app, inv, 0, item(gadget, 2, 2000, false))
+	mkInvoiceLine(t, e.app, inv, 1, item(gadget, 1, 2000, false))
+	sold := mustPostInvoice(t, e.app, inv.Id, e.users.bookkeeper.Id)
+	requireEveryMoveNumbered(t, e.app, "books_invoices", sold.Id, 2)
+
+	adj := postAdjustmentOf(t, e, "2026-07-04", "",
+		adjustmentLineInput{Product: gadget.Id, Quantity: -1, Bin: e.aisle.Id},
+		adjustmentLineInput{Product: gadget.Id, Quantity: 2, Value: 800, Bin: e.counter.Id},
+	)
+	requireEveryMoveNumbered(t, e.app, inventoryAdjustmentsCollection, adj.Id, 2)
+}
+
+// Spec §3.4 and §4: a correction's moves carry the new document's number, and
+// the replaced document keeps no move.
+func TestStockMoves_ACorrectionsMovesCarryTheNewNumber(t *testing.T) {
+	t.Run("bill", func(t *testing.T) {
+		e := newBinStockEnv(t)
+		gadget := e.gadget(t, e.aisle.Id)
+		original := e.buy(t, gadget, "2026-07-02", 6, 300)
+		draft := mkBill(t, e.app, e.vendor, map[string]any{"date": "2026-07-02", "due_date": "2026-07-02", "replaces": original.Id})
+		mkBillLine(t, e.app, draft, 0, productLine(gadget, 4, 300))
+		// A bill's correction keeps its original's number; its moves are the
+		// correction's own.
+		correction := mustPostBill(t, e.app, draft.Id, e.users.bookkeeper.Id)
+		requireEveryMoveNumbered(t, e.app, "books_bills", correction.Id, 1)
+		if n, _ := e.app.CountRecords(stockMovesCollection, dbx.HashExp{"document": original.Id}); n != 0 {
+			t.Errorf("%d stock moves of the replaced bill, want none", n)
+		}
+	})
+	t.Run("inventory adjustment", func(t *testing.T) {
+		e := newBinStockEnv(t)
+		gadget := e.gadget(t, e.aisle.Id)
+		original := postAdjustmentOf(t, e, "2026-07-02", "", adjustmentLineInput{Product: gadget.Id, Quantity: -3, Bin: e.aisle.Id})
+		correction := postAdjustmentOf(t, e, "2026-07-02", original.Id, adjustmentLineInput{Product: gadget.Id, Quantity: -2, Bin: e.aisle.Id})
+		if correction.GetString("number") == original.GetString("number") {
+			t.Fatalf("the correction took the original's number %q", original.GetString("number"))
+		}
+		requireEveryMoveNumbered(t, e.app, inventoryAdjustmentsCollection, correction.Id, 1)
+		if n, _ := e.app.CountRecords(stockMovesCollection, dbx.HashExp{"document": original.Id}); n != 0 {
+			t.Errorf("%d stock moves of the replaced adjustment, want none", n)
+		}
+	})
+}
+
+// Do step 4: stampStockMoveNumbers writes the number on the moves of one
+// document only, cuts a number over 40 characters to 40, and a document no
+// poster numbers keeps an empty document_number.
+//
+// The empty number is of this helper only: no real kind posts stock with no
+// number. A grep of the non-test callers of postDocumentStock and addStockMoves
+// finds two posters, salesDocStockLines (document_stock.go, every
+// registerSalesDocGuards kind, bills among them) and postAdjustmentReplacing
+// (inventory_adjustments.go: manual, opening by syncOpeningStock through
+// newSystemAdjustment; a re-cost writes no move). Each numbers its document
+// before numberPostedMoves, from postDocument's entry or allocateNumber, and
+// formatNumber is never "" (a prefix and the counter). So the case calls
+// postDocumentStock with no poster and no document row.
+func TestStampStockMoveNumbers_StampsOneDocument(t *testing.T) {
+	se := newStockEnv(t)
+	first, second := "bill00000000001", "bill00000000002"
+	for _, document := range []string{first, second} {
+		err := se.app.RunInTransaction(func(tx core.App) error {
+			_, err := postDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", document, "", "2026-07-01",
+				[]stockMoveInput{se.receipt(document, "2026-07-01", 2, 200)})
+			return err
+		})
+		if err != nil {
+			t.Fatalf("post the stock of %s: %v", document, err)
+		}
+	}
+	requireDocumentNumber(t, se.app, "books_bills", first, "")
+
+	stamp := func(number string) {
+		t.Helper()
+		if err := se.app.RunInTransaction(func(tx core.App) error {
+			return stampStockMoveNumbers(tx, "books_bills", first, number)
+		}); err != nil {
+			t.Fatalf("stamp %q: %v", number, err)
+		}
+	}
+	stamp("B-7")
+	requireDocumentNumber(t, se.app, "books_bills", first, "B-7")
+	requireDocumentNumber(t, se.app, "books_bills", second, "")
+
+	// books_stock_moves.document_number holds 40 characters (migration 2100000049).
+	stamp(strings.Repeat("9", 41))
+	requireDocumentNumber(t, se.app, "books_bills", first, strings.Repeat("9", 40))
+	requireDocumentNumber(t, se.app, "books_bills", second, "")
 }
 
 func TestInventoryAccounts_OwnAccountsThenTheChart(t *testing.T) {

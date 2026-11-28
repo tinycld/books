@@ -96,7 +96,26 @@ func registerInventoryAdjustmentGuards(app core.App) {
 		return e.Next()
 	})
 
-	bindSerializedGuard(app, inventoryAdjustmentLinesCollection, validateInventoryAdjustmentLine)
+	app.OnRecordCreate(inventoryAdjustmentLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		return serialized(e, func(tx core.App) error {
+			return validateInventoryAdjustmentLine(tx, nil, e.Record)
+		})
+	})
+	// The post's write of posted_value (writeLinePostedValues) runs inside the
+	// post's transaction and skips the read of the stored line: one statement
+	// for each line, not two (purchase_stock_cost_test.go).
+	app.OnRecordUpdate(inventoryAdjustmentLinesCollection).BindFunc(func(e *core.RecordEvent) error {
+		if lineWrittenByBooks(e.App, e.Record) {
+			return e.Next()
+		}
+		return serialized(e, func(tx core.App) error {
+			stored, err := tx.FindRecordById(inventoryAdjustmentLinesCollection, e.Record.Id)
+			if err != nil {
+				return err
+			}
+			return validateInventoryAdjustmentLine(tx, stored, e.Record)
+		})
+	})
 	app.OnRecordDelete(inventoryAdjustmentLinesCollection).BindFunc(func(e *core.RecordEvent) error {
 		return serialized(e, func(tx core.App) error {
 			// A draft's delete cascades its lines after the adjustment row is
@@ -136,10 +155,62 @@ func createInventoryAdjustment(tx core.App, r *core.Record) error {
 	if err := refuseServerFields(set); err != nil {
 		return err
 	}
+	if err := checkAdjustmentValuesKept(nil, r); err != nil {
+		return err
+	}
+	if replaces := r.GetString("replaces"); replaces != "" {
+		if err := checkReplaceable(tx, replaces); err != nil {
+			return err
+		}
+	}
 	if err := stampCurrency(tx, r); err != nil {
 		return err
 	}
 	return checkAdjustmentHeader(tx, nil, r)
+}
+
+// checkAdjustmentValuesKept refuses a write of value_change or replaced_by,
+// which the post and a correction's post write (postAdjustmentReplacing), and
+// a change of replaces, which a correction names when it is created. stored
+// is the row before an update, nil on a create. The collection rules refuse
+// them in a person's request; this holds for a superuser's too.
+func checkAdjustmentValuesKept(stored, r *core.Record) error {
+	var valueChange int
+	var replacedBy string
+	if stored != nil {
+		valueChange, replacedBy = stored.GetInt("value_change"), stored.GetString("replaced_by")
+		if stored.GetString("replaces") != r.GetString("replaces") {
+			return refuseField("replaces", msgBooksKeepsValue)
+		}
+	}
+	if r.GetInt("value_change") != valueChange {
+		return refuseField("value_change", msgBooksKeepsValue)
+	}
+	if r.GetString("replaced_by") != replacedBy {
+		return refuseField("replaced_by", msgBooksKeepsValue)
+	}
+	return nil
+}
+
+// checkReplaceable refuses a correction of adjustment id unless it is a posted
+// manual adjustment that no other adjustment replaced: the create checks it,
+// and the post again, as the adjustment may have changed since.
+func checkReplaceable(tx core.App, id string) error {
+	old, err := tx.FindRecordById(inventoryAdjustmentsCollection, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		// The schema refuses the relation to a row that does not exist.
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the adjustment to correct: %w", err)
+	}
+	if old.GetString("replaced_by") != "" {
+		return refuseField("replaces", msgAdjustmentCorrectedBefore, inventoryAdjustmentName(old))
+	}
+	if old.GetString("status") != statusPosted || old.GetString("kind") != adjustmentKindManual {
+		return refuseField("replaces", msgAdjustmentNotReplaceable, inventoryAdjustmentName(old))
+	}
+	return nil
 }
 
 // transitionInventoryAdjustment is the lifecycle of an adjustment a person
@@ -165,7 +236,14 @@ func transitionInventoryAdjustment(tx core.App, stored, r *core.Record, now time
 		if err := checkAdjustmentHeader(tx, stored, r); err != nil {
 			return err
 		}
-		return postInventoryAdjustment(tx, r, now)
+		replaces := r.GetString("replaces")
+		if replaces == "" {
+			return postInventoryAdjustment(tx, r, now)
+		}
+		if err := checkReplaceable(tx, replaces); err != nil {
+			return err
+		}
+		return postAdjustmentReplacing(tx, r, replaces, now)
 	case from == statusPosted && to == statusVoid:
 		if len(changedFields(stored, r, voidAdjustmentEditable)) > 0 {
 			return refuse(msgAdjustmentPostedFixed)
@@ -193,7 +271,10 @@ func checkAdjustmentBooksFieldsKept(stored, r *core.Record) error {
 			changed = append(changed, name)
 		}
 	}
-	return refuseServerFields(changed)
+	if err := refuseServerFields(changed); err != nil {
+		return err
+	}
+	return checkAdjustmentValuesKept(stored, r)
 }
 
 // checkAdjustmentHeader runs the header guards of a draft write and sets the
@@ -217,17 +298,36 @@ func checkAdjustmentHeader(tx core.App, stored, r *core.Record) error {
 	return nil
 }
 
+// lineWrittenByBooks reports whether Books itself writes line r in tx: the
+// lines of an adjustment it makes (newSystemAdjustment), or the posted_value
+// of a post (writeLinePostedValues).
+func lineWrittenByBooks(tx core.App, r *core.Record) bool {
+	id := r.GetString("adjustment")
+	return hasTxMark(tx, markSystemAdjustment, id) || hasTxMark(tx, markAdjustmentPostedValues, id)
+}
+
 // validateInventoryAdjustmentLine guards a line a person writes: its
 // adjustment is a draft and stays its adjustment, its product is an Inventory
-// item, and Books can cost its two numbers (adjustmentLineFault). The post
-// checks every line again. A line Books writes itself passes.
+// item, Books can cost its two numbers (adjustmentLineFault), and a bin it
+// names is active, on a line that changes the quantity. posted_value stays as
+// stored (0 on a create). The post checks every line again. A line Books writes
+// itself passes.
 func validateInventoryAdjustmentLine(tx core.App, stored, r *core.Record) error {
 	id := r.GetString("adjustment")
-	if hasTxMark(tx, markSystemAdjustment, id) {
+	if lineWrittenByBooks(tx, r) {
 		return nil
 	}
 	if stored != nil && stored.GetString("adjustment") != id {
 		return refuseField("adjustment", msgAdjustmentRowStays)
+	}
+	// The post writes posted_value (writeLinePostedValues); the collection
+	// rules refuse it in a person's request, this in a superuser's too.
+	var postedValue int
+	if stored != nil {
+		postedValue = stored.GetInt("posted_value")
+	}
+	if r.GetInt("posted_value") != postedValue {
+		return refuseField("posted_value", msgBooksKeepsValue)
 	}
 	adjustment, err := tx.FindRecordById(inventoryAdjustmentsCollection, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -272,5 +372,14 @@ func validateInventoryAdjustmentLine(tx core.App, stored, r *core.Record) error 
 	if fault := adjustmentLineFault(qtyHundredths(r.GetFloat("quantity")), int64(r.GetInt("value"))); fault != "" {
 		return refuseField("value", "%s", fault)
 	}
-	return nil
+	bin := r.GetString("bin")
+	if bin == "" {
+		return nil
+	}
+	if qtyHundredths(qty) == 0 {
+		return refuseField("bin", msgAdjustmentValueHasNoBin)
+	}
+	// The post checks the bin again (adjustmentBinFault): one that became
+	// inactive after the line was saved stops the post.
+	return checkActiveBin(tx, "bin", bin)
 }

@@ -313,7 +313,7 @@ function NoneItem({
     onChange,
 }: {
     option?: { label: string; testID: string }
-    value: string
+    value: string | null
     onChange: (id: string) => void
 }) {
     if (!option) return null
@@ -330,7 +330,7 @@ function NoneItem({
 interface OptionItemsProps {
     options: readonly SearchPickerOption[]
     optionTestIdPrefix: string
-    value: string
+    value: string | null
     onChange: (id: string) => void
 }
 
@@ -443,7 +443,8 @@ interface SearchPickerProps {
     searchTestId: string
     options: readonly SearchPickerOption[]
     optionTestIdPrefix: string
-    value: string
+    // The chosen id; '' is the none option, null no choice (no row is marked).
+    value: string | null
     onChange: (id: string) => void
     // An item above the options that picks no record (an empty value).
     noneOption?: { label: string; testID: string }

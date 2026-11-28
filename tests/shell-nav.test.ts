@@ -100,13 +100,26 @@ describe('registries', () => {
         })
     })
 
-    it('the New menu Other column lists Journal entry, then Transfer, then Bank deposit, then Product or service', () => {
+    it('NEW_ACTIONS has an available Inventory adjustment action in the other column, after Product or service', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'inventory_adjustment')).toEqual({
+            id: 'inventory_adjustment',
+            label: 'Inventory adjustment',
+            href: 'books/inventory-adjustments/new',
+            column: 'other',
+            available: true,
+        })
+        const ids = NEW_ACTIONS.map(a => a.id)
+        expect(ids.indexOf('inventory_adjustment')).toBe(ids.indexOf('product') + 1)
+    })
+
+    it('the New menu Other column lists Journal entry, then Transfer, then Bank deposit, then Product or service, then Inventory adjustment', () => {
         const other = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Other')
         expect(other?.actions.map(a => a.label)).toEqual([
             'Journal entry',
             'Transfer',
             'Bank deposit',
             'Product or service',
+            'Inventory adjustment',
         ])
     })
 
@@ -390,12 +403,14 @@ describe('registries', () => {
         })
     })
 
+    // Inventory-adjust spec §2 (Q2): the card stays the way in to the tab strip of
+    // Products and services, Inventory adjustments and Bin locations.
     it('LIST_ENTRIES has an available Products and services card after Vendors', () => {
         const products = LIST_ENTRIES.find(e => e.id === 'products')
         expect(products).toEqual({
             id: 'products',
             label: 'Products and services',
-            description: 'What you sell and buy',
+            description: 'What you sell and buy, stock and bins',
             href: 'books/products',
             available: true,
         })
@@ -679,6 +694,77 @@ describe('reconcile sidebar entry', () => {
         expect(hidesNewFab('/a/acme/books/reconcile/history')).toBe(false)
         expect(hidesNewFab('/a/books/reconcile/historyabcdefgh')).toBe(true)
         expect(hidesNewFab('/a/books/reconcile/rrptseedcrd0831')).toBe(true)
+    })
+})
+
+// Inventory-adjust spec §2 (Q2): the Inventory adjustments tab of Products and services has
+// no sidebar entry of its own, so the Lists entry stays active on its list and on each
+// adjustment; the form and the read view draw their own bars, so the New button hides.
+describe('inventory adjustments', () => {
+    function listsEntry(): SidebarEntry {
+        const lists = SIDEBAR_ENTRIES.find(e => e.id === 'lists')
+        if (!lists) throw new Error('SIDEBAR_ENTRIES has no lists entry')
+        return lists
+    }
+
+    it('the Lists entry names books/inventory-adjustments in its activePaths', () => {
+        expect(listsEntry().activePaths).toContain('books/inventory-adjustments')
+    })
+
+    it.each([
+        '/a/org/books/inventory-adjustments',
+        '/a/org/books/inventory-adjustments/',
+        '/a/org/books/inventory-adjustments/iadjposted00012',
+        '/a/org/books/inventory-adjustments/new',
+    ])('the Lists entry is active on %s, and no other entry is', pathname => {
+        expect(isActivePath(pathname, listsEntry())).toBe(true)
+        const others = SIDEBAR_ENTRIES.filter(e => e.id !== 'lists')
+        expect(others.filter(e => isActivePath(pathname, e)).map(e => e.id)).toEqual([])
+    })
+
+    it('the Lists entry is not active on a near-miss segment', () => {
+        expect(isActivePath('/a/org/books/inventory-adjustments-old', listsEntry())).toBe(false)
+    })
+
+    it('keeps the New button on the list', () => {
+        expect(hidesNewFab('/a/books/inventory-adjustments')).toBe(false)
+        expect(hidesNewFab('/a/acme/books/inventory-adjustments/')).toBe(false)
+    })
+
+    it.each([
+        '/a/books/inventory-adjustments/new',
+        '/a/acme/books/inventory-adjustments/new/',
+        '/a/books/inventory-adjustments/iadjposted00012',
+        '/a/acme/books/inventory-adjustments/5/',
+    ])('hides the New button on the adjustment screen %s', pathname => {
+        expect(hidesNewFab(pathname)).toBe(true)
+    })
+})
+
+// Inventory-adjust spec §2 (Q2): the Bin locations tab (`books/bins`) has no sidebar entry
+// of its own either, so the Lists entry stays active on it.
+describe('bin locations', () => {
+    function listsEntry(): SidebarEntry {
+        const lists = SIDEBAR_ENTRIES.find(e => e.id === 'lists')
+        if (!lists) throw new Error('SIDEBAR_ENTRIES has no lists entry')
+        return lists
+    }
+
+    it('the Lists entry names books/bins in its activePaths', () => {
+        expect(listsEntry().activePaths).toContain('books/bins')
+    })
+
+    it.each([
+        '/a/org/books/bins',
+        '/a/org/books/bins/',
+    ])('the Lists entry is active on %s, and no other entry is', pathname => {
+        expect(isActivePath(pathname, listsEntry())).toBe(true)
+        const others = SIDEBAR_ENTRIES.filter(e => e.id !== 'lists')
+        expect(others.filter(e => isActivePath(pathname, e)).map(e => e.id)).toEqual([])
+    })
+
+    it('the Lists entry is not active on a near-miss segment', () => {
+        expect(isActivePath('/a/org/books/bins-old', listsEntry())).toBe(false)
     })
 })
 

@@ -344,8 +344,9 @@ export function registerCollections(
     // rows, the product picker and the account pickers read their own
     // collections. The guard sets name_key and sort_key, and the server stamps currency.
     // The costing replay writes quantity_on_hand and stock_value, and the purchase order
-    // guard quantity_on_po (2100000048); the product form writes the other inventory
-    // columns.
+    // guard quantity_on_po (2100000048); the product guard writes low_stock and refuses a
+    // client write of it (2100000049). The product form writes the other inventory
+    // columns, default_bin among them.
     const books_products = newCollection('books_products', {
         omitOnInsert: [
             'created',
@@ -356,6 +357,7 @@ export function registerCollections(
             'quantity_on_hand',
             'stock_value',
             'quantity_on_po',
+            'low_stock',
         ] as const,
         ...onDemand,
         collectionOptions: indexed,
@@ -1145,18 +1147,49 @@ export function registerCollections(
             'voided_by',
             'voided_at',
             'sort_key',
+            // The post writes these (the create rule refuses them in a request).
+            'value_change',
+            'replaced_by',
         ] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
 
+    // The server writes a line's posted_value at the post (server/inventory_adjustments.go).
     const books_inventory_adjustment_lines = newCollection('books_inventory_adjustment_lines', {
-        omitOnInsert: ['created', 'updated'] as const,
+        omitOnInsert: ['created', 'updated', 'posted_value'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // The server trims a bin's name and fills its sort_key (server/bins.go). No relations:
+    // the bin stock, the moves between bins and the products name a bin by id, and a
+    // screen reads the bin with materialize() from this collection.
+    const books_bins = newCollection('books_bins', {
+        omitOnInsert: ['created', 'updated', 'sort_key'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // Written by the server only (every stock move and every move between bins); clients
+    // read an item's rows by product.
+    const books_bin_stock = newCollection('books_bin_stock', {
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // A move between bins is never edited or deleted; created_by is stamped from the
+    // request's user.
+    const books_bin_transfers = newCollection('books_bin_transfers', {
+        omitOnInsert: ['created', 'created_by'] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
 
     return {
+        books_bins,
+        books_bin_stock,
+        books_bin_transfers,
         books_sidebar_shortcuts,
         books_stock_moves,
         books_stock_layers,

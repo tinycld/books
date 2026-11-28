@@ -314,6 +314,9 @@ func fieldsOf(collection string) []field {
 	if collection == reconciliationsCollection {
 		return reconciliationsResource.Fields
 	}
+	if collection == binTransfersResource.Collection {
+		return binTransfersResource.Fields
+	}
 	if fields, ok := reconcileRowFields[collection]; ok {
 		return fields
 	}

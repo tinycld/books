@@ -35,15 +35,22 @@ func adjustments(t *testing.T) *fakeBooks {
 	return f
 }
 
-// An inventory adjustment is a posting document with no `replaces`: Books has
-// no correction of one.
-func TestInventoryAdjustmentsIsAPostingDocumentThatIsNotCorrected(t *testing.T) {
+// An inventory adjustment is a posting document that is corrected
+// (inventory-adjust spec §3.4, §3.11): `add` takes `replaces`, and Books writes
+// `replaced_by` on the one it replaces.
+func TestInventoryAdjustmentsIsAPostingDocumentThatIsCorrected(t *testing.T) {
 	doc := findDocument("inventory-adjustments")
 	if doc == nil {
 		t.Fatal("documents.json has no inventory-adjustments")
 	}
-	if !doc.hasDraft() || doc.corrects() || doc.hasRevision() || doc.Scoped {
-		t.Errorf("hasDraft = %v, corrects = %v, hasRevision = %v, scoped = %v", doc.hasDraft(), doc.corrects(), doc.hasRevision(), doc.Scoped)
+	if !doc.hasDraft() || !doc.corrects() || doc.hasRevision() || doc.Scoped {
+		t.Errorf("hasDraft = %v, corrects = %v, hasRevision = %v, scoped = %v; want a draft, a correction, no revision, no scope", doc.hasDraft(), doc.corrects(), doc.hasRevision(), doc.Scoped)
+	}
+	if f := doc.field("replaces"); f == nil || f.ReadOnly || f.Ref != "inventory-adjustments" {
+		t.Errorf("replaces = %+v, want a writable ref to inventory-adjustments", f)
+	}
+	if f := doc.field("replaced_by"); f == nil || !f.ReadOnly || f.Ref != "inventory-adjustments" {
+		t.Errorf("replaced_by = %+v, want a read-only ref to inventory-adjustments", f)
 	}
 	if journalEntries := findDocument("journal-entries"); !journalEntries.corrects() {
 		t.Error("a journal entry has `replaces`: its edit still corrects")
@@ -62,8 +69,8 @@ func TestInventoryAdjustmentAddAndPost(t *testing.T) {
 	}
 	want := `[` +
 		`{"method":"POST","url":"/api/collections/books_inventory_adjustments/records","body":{"date":"2026-09-05","id":"cliadjust000001","kind":"manual","memo":"count","status":"draft"}},` +
-		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000001","position":0,"product":"` + stockWidget + `","quantity":10,"value":5000}},` +
-		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000001","position":1,"product":"` + stockWidget + `","quantity":-2.5}},` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000001","position":0,"product":"` + stockWidget + `","quantity":10,"value":5000,"value_given":true}},` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000001","position":1,"product":"` + stockWidget + `","quantity":-2.5,"value_given":false}},` +
 		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustments/records/cliadjust000001","body":{"status":"posted"}}]`
 	if got := sentBatch(t, f, 0); got != want {
 		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)
@@ -85,24 +92,94 @@ func TestInventoryAdjustmentEditOfADraftChangesItInPlace(t *testing.T) {
 	}
 }
 
-// Books answers "not found" to the change of a posted adjustment. The command
-// sends nothing and names the way: void it, then add a new one.
-func TestInventoryAdjustmentEditOfAPostedOneIsRefused(t *testing.T) {
+// Books never changes a posted adjustment: the edit of one is a correction, as
+// the app's Edit (inventory-adjust spec §3.4, Q3). One batch creates the new
+// adjustment as a draft with `replaces`, with the posted one's lines (the bin
+// too) under the caller's changes, and posts it; the server voids the replaced
+// one (TestCLIBins_ACorrectionWithABinVoidsTheOriginal sends this batch shape,
+// from `add` with `replaces`, to the real API).
+func TestInventoryAdjustmentEditOfAPostedOneIsACorrection(t *testing.T) {
 	f := adjustments(t)
-	_, _, err := runCmd(t, f.serve(), `{"memo": "x"}`, "books", "inventory-adjustments", "edit", adjustPosted, "--input", "-")
-	want := "inventory adjustment " + adjustPosted + " is posted: it cannot be changed; void it with `tinycld books inventory-adjustments void " + adjustPosted + "`, then add a new one with `tinycld books inventory-adjustments add`"
-	if got := exitcode.Of(err); got != exitcode.Refused || err.Error() != want {
-		t.Fatalf("exit = %d, err = %v\nwant %s", got, err, want)
+	f.find("books_inventory_adjustment_lines", "lnjustposted001")["bin"] = binAisle
+	fixedIDs(t, "cliadjust000002")
+	_, errOut, err := runCmd(t, f.serve(), `{"memo": "recount"}`, "books", "inventory-adjustments", "edit", adjustPosted, "--input", "-", "--json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(f.batches) != 0 {
-		t.Errorf("batches = %v, want none", f.batches)
+	want := `[` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustments/records","body":{"account":"","date":"2026-09-05","id":"cliadjust000002","kind":"manual","memo":"recount","replaces":"` + adjustPosted + `","status":"draft"}},` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000002","bin":"` + binAisle + `","position":0,"product":"` + stockWidget + `","quantity":10,"value":5000,"value_given":true}},` +
+		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustments/records/cliadjust000002","body":{"status":"posted"}}]`
+	if got := sentBatch(t, f, 0); got != want {
+		t.Errorf("the correction:\n%s\nwant:\n%s", got, want)
+	}
+	if !strings.Contains(errOut, "corrected inventory adjustment") || !strings.Contains(errOut, "it is void") {
+		t.Errorf("stderr %q does not say that the posted one is corrected", errOut)
 	}
 	cmd, _, findErr := newTestRoot(nil).Find([]string{"books", "inventory-adjustments", "edit"})
 	if findErr != nil {
 		t.Fatal(findErr)
 	}
-	if cmd.Flags().Lookup("id") != nil || strings.Contains(cmd.Long, "replaces") {
-		t.Errorf("the edit of a type that is not corrected has no --id and names no `replaces`:\n%s", cmd.Long)
+	if cmd.Flags().Lookup("id") == nil || !strings.Contains(cmd.Long, "replaces") {
+		t.Errorf("the edit of a corrected type takes --id and names `replaces`:\n%s", cmd.Long)
+	}
+}
+
+// A posted line of free stock (an increase whose value the writer gave as 0,
+// spec §3.3 "the cost of the added quantity, 0 or more") keeps its stored
+// value_given in the correction: Books copies the stored line, it does not work
+// the flag out again from the value, or the server would take the last known
+// cost for the 5 units (TestCLIBins_ACorrectionOfFreeStockKeepsItsValue sends
+// this batch to the real API).
+func TestInventoryAdjustmentCorrectionKeepsAFreeStockLine(t *testing.T) {
+	f := adjustments(t)
+	stored := f.find("books_inventory_adjustment_lines", "lnjustposted001")
+	stored["quantity"] = json.Number("5")
+	stored["value"] = json.Number("0")
+	stored["value_given"] = true
+	fixedIDs(t, "cliadjust000002")
+	if _, _, err := runCmd(t, f.serve(), `{"memo":"recount"}`, "books", "inventory-adjustments", "edit", adjustPosted, "--input", "-", "--json"); err != nil {
+		t.Fatal(err)
+	}
+	want := `[` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustments/records","body":{"account":"","date":"2026-09-05","id":"cliadjust000002","kind":"manual","memo":"recount","replaces":"` + adjustPosted + `","status":"draft"}},` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000002","position":0,"product":"` + stockWidget + `","quantity":5,"value":0,"value_given":true}},` +
+		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustments/records/cliadjust000002","body":{"status":"posted"}}]`
+	if got := sentBatch(t, f, 0); got != want {
+		t.Errorf("the correction of a free-stock line:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// `replaces` is create-only: `add` takes it, and `edit` refuses it before it
+// sends anything, of a draft (which would PATCH it) and of a posted one (whose
+// correction sets its own). The edit schema leaves it out; the add schema has it.
+func TestInventoryAdjustmentEditRefusesReplaces(t *testing.T) {
+	for _, id := range []string{adjustDraft, adjustPosted} {
+		f := adjustments(t)
+		_, _, err := runCmd(t, f.serve(), `{"replaces":"adjustother0001"}`, "books", "inventory-adjustments", "edit", id, "--input", "-", "--json")
+		if got := exitcode.Of(err); got != exitcode.Usage || err == nil || !strings.Contains(err.Error(), "replaces") || !strings.Contains(err.Error(), "add") {
+			t.Errorf("edit %s with replaces: exit = %d, err = %v; want a usage refusal that says `add` takes replaces", id, got, err)
+		}
+		if len(f.requests) != 0 {
+			t.Errorf("edit %s with replaces sent %v, want nothing", id, f.requests)
+		}
+	}
+	props := func(command string) map[string]any {
+		out, _, err := runCmd(t, nil, "", "books", "schema", "inventory-adjustments", command, "--json")
+		if err != nil {
+			t.Fatalf("schema %s: %v", command, err)
+		}
+		var spec specOut
+		if err := json.Unmarshal([]byte(out), &spec); err != nil {
+			t.Fatal(err)
+		}
+		return spec.Input["properties"].(map[string]any)
+	}
+	if _, ok := props("edit")["replaces"]; ok {
+		t.Error("schema inventory-adjustments edit lists replaces, which only add takes")
+	}
+	if _, ok := props("add")["replaces"]; !ok {
+		t.Error("schema inventory-adjustments add does not list replaces")
 	}
 }
 
@@ -128,11 +205,46 @@ func TestInventoryAdjustmentEditOfADraftChangesItsLines(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `[` +
-		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustment_lines/records/lnjustdraft0001","body":{"position":0,"product":"` + stockWidget + `","quantity":12,"value":6000}},` +
-		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"` + adjustDraft + `","id":"cliadjline00002","position":1,"product":"` + stockWidget + `","value":-300}},` +
+		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustment_lines/records/lnjustdraft0001","body":{"bin":null,"position":0,"product":"` + stockWidget + `","quantity":12,"value":6000,"value_given":true}},` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"` + adjustDraft + `","id":"cliadjline00002","position":1,"product":"` + stockWidget + `","value":-300,"value_given":false}},` +
 		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustments/records/` + adjustDraft + `","body":{"memo":"stock count"}}]`
 	if got := sentBatch(t, f, 0); got != want {
 		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// The app stores `value_given: true` on a line whose Value change the user
+// typed. A CLI edit PATCHes that stored line, so it must state value_given
+// itself: the line help says that on an increase "0 or left out takes the last
+// known cost", and the server values an increase at 0 when value_given is true
+// (server/inventory_adjustments.go). After the edit and the post, the stored
+// line is an increase whose value nobody gave.
+func TestInventoryAdjustmentEditOfAnAppLineFollowsTheLineHelp(t *testing.T) {
+	for name, line := range map[string]string{
+		"value 0":       `{"product": "` + stockWidget + `", "quantity": 5, "value": 0}`,
+		"value omitted": `{"product": "` + stockWidget + `", "quantity": 5}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := adjustments(t)
+			stored := f.find("books_inventory_adjustment_lines", "lnjustdraft0001")
+			stored["quantity"] = json.Number("5")
+			stored["value"] = json.Number("300")
+			stored["value_given"] = true
+			if _, _, err := runCmd(t, f.serve(), `{"lines": [`+line+`]}`,
+				"books", "inventory-adjustments", "edit", adjustDraft, "--input", "-", "--json"); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := runCmd(t, f.serve(), "", "books", "inventory-adjustments", "post", adjustDraft, "--json"); err != nil {
+				t.Fatal(err)
+			}
+			row := f.find("books_inventory_adjustment_lines", "lnjustdraft0001")
+			if got, ok := row["value_given"].(bool); !ok || got {
+				t.Errorf("the stored line has value_given = %v (%T), want false: the 5 units take the last known cost, as the line help says", row["value_given"], row["value_given"])
+			}
+			if got := f.find("books_inventory_adjustments", adjustDraft)["status"]; got != "posted" {
+				t.Errorf("status = %v, want posted", got)
+			}
+		})
 	}
 }
 

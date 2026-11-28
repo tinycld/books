@@ -1,4 +1,4 @@
-import { eq } from '@tanstack/db'
+import { and, eq } from '@tanstack/db'
 import { useLiveInfiniteQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import {
@@ -12,34 +12,41 @@ import {
 import { usePagedListSource } from './useRecordList'
 
 // One page of products at a time, filtered and ordered by the server, so only the pages
-// scrolled into reach the store.
-export function useProductsQuery(filters: ListFilters) {
+// scrolled into reach the store. `lowOnly` (the Low stock chip, inventory-adjust spec
+// §3.10) keeps the items the server marks low: `low_stock` is a stored bool, so the
+// filter needs no compare of two fields in the query.
+export function useProductsQuery(filters: ListFilters, lowOnly: boolean) {
     const [productsCollection] = useStore('books_products')
     const query = useLiveInfiniteQuery(
         q => {
             const all = q.from({ product: productsCollection })
-            const shown = hasListFilter(filters)
-                ? all.where(({ product }) =>
-                      listFilter(
-                          {
-                              isActive: eq(product.inactive, false),
-                              text: [
-                                  product.code,
-                                  product.name,
-                                  product.vendor_part_no,
-                                  product.sales_description,
-                              ],
-                          },
-                          filters
-                      )
-                  )
-                : all
+            const isListed = hasListFilter(filters)
+            const shown =
+                isListed || lowOnly
+                    ? all.where(({ product }) => {
+                          const low = eq(product.low_stock, true)
+                          if (!isListed) return low
+                          const listed = listFilter(
+                              {
+                                  isActive: eq(product.inactive, false),
+                                  text: [
+                                      product.code,
+                                      product.name,
+                                      product.vendor_part_no,
+                                      product.sales_description,
+                                  ],
+                              },
+                              filters
+                          )
+                          return lowOnly ? and(listed, low) : listed
+                      })
+                    : all
             return shown
                 .orderBy(({ product }) => product.sort_key, SORT_KEY_ORDER)
                 .orderBy(({ product }) => product.id, ID_ORDER)
         },
         {
-            queryKey: ['books.products.list', filters.search, filters.showInactive],
+            queryKey: ['books.products.list', filters.search, filters.showInactive, lowOnly],
             pageSize: LIST_PAGE_SIZE,
         }
     )

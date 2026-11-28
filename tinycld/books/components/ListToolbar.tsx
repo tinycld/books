@@ -1,8 +1,8 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { Search } from 'lucide-react-native'
-import type { RefObject } from 'react'
-import { type TextInputInstance, type TextInputKeyPressEvent, View } from 'react-native'
+import type { ReactNode, RefObject } from 'react'
+import { ScrollView, type TextInputInstance, type TextInputKeyPressEvent, View } from 'react-native'
 import { ShowInactiveChip } from './ShowInactiveChip'
 
 type ListFilters = {
@@ -75,6 +75,50 @@ export function SearchField({
                 onChangeText={list.setQuery}
                 className="min-w-0 flex-1 text-sm text-foreground"
             />
+        </View>
+    )
+}
+
+const NO_GROW = { flexGrow: 0 }
+
+// `bottom` pads under the row only (a toolbar under a tab strip); `both` pads above and
+// under it.
+const CHIP_TOOLBAR_CLASSES = {
+    bottom: { phone: 'gap-2 pb-3', wide: 'flex-row flex-wrap items-center gap-2 px-4 pb-3' },
+    both: { phone: 'gap-2 py-2', wide: 'flex-row flex-wrap items-center gap-2 px-4 py-3' },
+}
+
+/**
+ * The layout of a list toolbar with a search and filter chips. Wide, the search and the
+ * chips share one wrapping row; on a phone the search has its own row and the chips scroll
+ * sideways in the next.
+ */
+export function ChipToolbarLayout({
+    search,
+    chips,
+    isPhone,
+    padding,
+}: {
+    search: ReactNode
+    chips: ReactNode
+    isPhone: boolean
+    padding: keyof typeof CHIP_TOOLBAR_CLASSES
+}) {
+    const classes = CHIP_TOOLBAR_CLASSES[padding]
+    if (isPhone) {
+        return (
+            <View className={classes.phone}>
+                <View className="flex-row items-center px-4">{search}</View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={NO_GROW}>
+                    <View className="flex-row items-center gap-2 px-4">{chips}</View>
+                </ScrollView>
+            </View>
+        )
+    }
+    return (
+        <View className={classes.wide}>
+            {search}
+            {chips}
         </View>
     )
 }

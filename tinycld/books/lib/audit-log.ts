@@ -88,6 +88,8 @@ export const AUDIT_RECORD_TYPE_OPTIONS: SelectOption[] = [
     { value: 'books_party_contacts', label: 'Contact' },
     { value: 'books_products', label: 'Product or service' },
     { value: 'books_bundle_items', label: 'Bundle item' },
+    { value: 'books_bins', label: 'Bin location' },
+    { value: 'books_bin_transfers', label: 'Move between bins' },
     { value: 'books_tax_agencies', label: 'Tax agency' },
     { value: 'books_tax_rates', label: 'Tax rate' },
     { value: 'books_bank_connections', label: 'Bank connection' },

@@ -104,19 +104,21 @@ export function screensBelowRoute(state: StackState, routeKey: string): BelowScr
 }
 
 // The index of the root route right below `routeKey` when it is the kind route `kindRoute`
-// with the record `id` on top of its child stack (`<kindRoute>/[id]`); -1 otherwise.
+// with the record `id` on top of its child stack (`<kindRoute>/[id]`); -1 otherwise. A
+// null `id` matches any record on top.
 export function kindRouteBelowShowing(
     state: StackState,
     routeKey: string,
     kindRoute: string,
-    id: string
+    id: string | null
 ): number {
     const below = state.routes.findIndex(route => route.key === routeKey) - 1
     if (below < 0) return -1
     const route = state.routes[below]
     if (route.name !== kindRoute) return -1
     const top = screensOfRoute(route, below).at(-1)
-    return top?.name === `${kindRoute}/[id]` && top.id === id ? below : -1
+    if (top?.name !== `${kindRoute}/[id]`) return -1
+    return id === null || top.id === id ? below : -1
 }
 
 // screensBelowRoute as one string, so a navigation-state selector returns a value that

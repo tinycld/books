@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+    INVENTORY_ITEM_IDS,
+    INVENTORY_PRINTER,
+    inventoryItem,
+} from '../tinycld/books/lib/inventory-adjust-fixture'
+import {
     PRODUCT_COLUMNS,
     PRODUCT_PICKER_LIMIT,
     PRODUCT_ROW_HEIGHT,
@@ -9,6 +14,7 @@ import {
     productCostText,
     productPickerOptions,
     productPriceText,
+    productStockLine,
     productTypeLine,
 } from '../tinycld/books/lib/product-list'
 import { PRODUCT_IDS, PRODUCTS } from '../tinycld/books/lib/products-services-fixture'
@@ -136,6 +142,74 @@ describe('productCardHeight', () => {
     it('scales the text lines, not the padding', () => {
         expect(productCardHeight(ACCESS_POINT, 2)).toBe(24 + (20 + 16 + 16) * 2)
         expect(productCardHeight(ACCESS_POINT, 2)).toBe(128)
+    })
+})
+
+// Inventory-adjust spec §3.10: the stock line of an Inventory row and card.
+const LABELS = inventoryItem(INVENTORY_ITEM_IDS.labels)
+const PAPER_ROLL = inventoryItem(INVENTORY_ITEM_IDS.paperRoll)
+const TAPE = inventoryItem(INVENTORY_ITEM_IDS.tape)
+
+describe('productStockLine', () => {
+    it('gives an Inventory item its quantity on hand, muted', () => {
+        expect(LABELS.quantity_on_hand).toBe(36)
+        expect(LABELS.low_stock).toBe(false)
+        expect(productStockLine(LABELS)).toEqual({ text: '36 on hand', tone: 'muted' })
+    })
+
+    it('gives a low item "Low · <n> on hand" as a warning', () => {
+        expect(PAPER_ROLL.low_stock).toBe(true)
+        expect(productStockLine(PAPER_ROLL)).toEqual({ text: 'Low · 3 on hand', tone: 'warning' })
+    })
+
+    it('writes a fraction of a quantity with its decimals', () => {
+        expect(TAPE.quantity_on_hand).toBe(18.5)
+        expect(productStockLine(TAPE)).toEqual({ text: '18.5 on hand', tone: 'muted' })
+    })
+
+    // Each has a quantity, so only the type rule can give null.
+    it.each([
+        ['a Service', CONSULTATION],
+        ['a Non-inventory item', ACCESS_POINT],
+        ['a Bundle', OFFICE_NETWORK],
+    ])('gives %s no stock line', (_label, product) => {
+        expect(productStockLine({ ...product, quantity_on_hand: 4, low_stock: false })).toBeNull()
+    })
+})
+
+describe('productTypeLine of an Inventory card', () => {
+    it('reads "Inventory · <price> · <n> on hand"', () => {
+        expect(
+            productTypeLine({
+                ...INVENTORY_PRINTER,
+                price: 28_900,
+                quantity_on_hand: 36,
+                low_stock: false,
+            })
+        ).toBe('Inventory · $289.00 · 36 on hand')
+    })
+
+    it('ends "· <n> on hand" for a low item too', () => {
+        expect(productTypeLine(PAPER_ROLL)).toBe('Inventory · $4.50 · 3 on hand')
+    })
+})
+
+describe('productCardHeight of an Inventory card', () => {
+    // The same card with the low mark off: its type line is as long, so only the badge
+    // line can change the height.
+    const notLow = { ...PAPER_ROLL, low_stock: false }
+
+    it('grows for the Low stock badge line when the item is low', () => {
+        expect(productCardHeight(PAPER_ROLL)).toBeGreaterThan(productCardHeight(notLow))
+    })
+
+    it('does not grow when the item is not low', () => {
+        expect(productCardHeight(notLow)).toBe(
+            productCardHeight({ ...notLow, type: 'non_inventory' })
+        )
+        expect(productCardHeight(LABELS)).toBe(
+            productCardHeight({ ...LABELS, type: 'non_inventory' })
+        )
     })
 })
 

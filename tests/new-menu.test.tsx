@@ -273,6 +273,35 @@ describe('NewMenu', () => {
         )
     })
 
+    // The real registry: Inventory adjustment follows Product or service in the Other
+    // column (inventory adjustment spec §2).
+    it('lists Inventory adjustment right after Product or service in Other and opens books/inventory-adjustments/new from it', () => {
+        const registry = newMenuForAccess(access, NEW_ACTIONS)
+        const other = registry.find(column => column.heading === 'Other')
+        const ids = other?.actions.map(action => action.id) ?? []
+        expect(ids).toContain('inventory_adjustment')
+        expect(ids.indexOf('inventory_adjustment')).toBe(ids.indexOf('product') + 1)
+
+        const { onSelect } = renderOpenMenu(registry)
+        const product = byTestId(document.body, 'books-new-product')
+        const adjustment = byTestId(document.body, 'books-new-inventory-adjustment')
+        expect(product).not.toBeNull()
+        expect(adjustment).not.toBeNull()
+        if (!product || !adjustment) return
+        expect(adjustment.textContent).toContain('Inventory adjustment')
+        expect(
+            product.compareDocumentPosition(adjustment) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(adjustment)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({
+                id: 'inventory_adjustment',
+                label: 'Inventory adjustment',
+                href: 'books/inventory-adjustments/new',
+            })
+        )
+    })
+
     // Refund receipt spec §3.13: the customer page's New transaction menu lists it.
     it('gives the refund_receipt action takesCustomer', () => {
         expect(NEW_ACTIONS.find(action => action.id === 'refund_receipt')).toMatchObject({

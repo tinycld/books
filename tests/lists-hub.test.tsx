@@ -78,6 +78,15 @@ describe('useListsHub', () => {
         expect(result.current.isEmpty).toBe(false)
     })
 
+    // Inventory-adjust spec §2 (Q2): the hub's Products and services card is the way in to
+    // the stock and bin tabs too, and says so.
+    it('describes the Products and services card as what you sell and buy, stock and bins', () => {
+        const { result } = renderHook(() => useListsHub(), { wrapper })
+        const products = result.current.cards.find(card => card.id === 'products')
+        expect(products?.href).toBe('books/products')
+        expect(products?.description).toBe('What you sell and buy, stock and bins')
+    })
+
     it('is empty when no entry is available', () => {
         const { result } = renderHook(() => useListsHub([hidden]), { wrapper })
         expect(result.current.cards).toEqual([])

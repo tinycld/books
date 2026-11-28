@@ -74,6 +74,44 @@ func checkStockTotalsKept(tx core.App, stored, r *core.Record) error {
 	return nil
 }
 
+// msgBooksKeepsValue refuses a request that writes a value only Books writes
+// (low_stock).
+const msgBooksKeepsValue = "Books keeps this value."
+
+// checkLowStockKept refuses a write that sets low_stock, unless the store is
+// writing the stock totals (markStockWrite). A write that leaves it as it
+// loaded it, or holds the stored one, passes: the guard then writes the answer
+// itself (validateProduct), as a replay may have moved it since the load.
+func checkLowStockKept(tx core.App, stored, r *core.Record) error {
+	if hasTxMark(tx, markStockWrite, r.Id) {
+		return nil
+	}
+	same := func(to *core.Record) bool {
+		return to != nil && r.GetBool("low_stock") == to.GetBool("low_stock")
+	}
+	if !same(r.Original()) && !same(stored) {
+		return refuseField("low_stock", msgBooksKeepsValue)
+	}
+	return nil
+}
+
+// validateDefaultBin checks an item's default bin: only an Inventory item has
+// one, and a write that sets or changes it names a bin that exists and is
+// active. An item keeps a default bin that became inactive after it was set.
+func validateDefaultBin(tx core.App, stored, r *core.Record) error {
+	id := r.GetString("default_bin")
+	if id == "" {
+		return nil
+	}
+	if !isInventoryProduct(r) {
+		return refuseField("default_bin", msgDefaultBinInventoryOnly)
+	}
+	if stored != nil && stored.GetString("default_bin") == id {
+		return nil
+	}
+	return checkActiveBin(tx, "default_bin", id)
+}
+
 // validateInventoryItem runs before the accounts every item has are checked.
 // It turns purchasing on (an Inventory item is bought), gives an item with no
 // inventory asset or cost of goods sold account the chart's, and checks the

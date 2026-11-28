@@ -40,6 +40,60 @@ export type RecordListFrameProps<Row> = {
     // A control beside the New button, such as a report link. Pass undefined, not an
     // element that renders null, when there is none to show.
     headerAction?: ReactNode
+    // A tab strip under the title row (Products and services: the inventory tabs).
+    tabs?: ReactNode
+    // A list's own toolbar in place of the search and Show inactive row (the inventory
+    // adjustments' search and chips). It shows while the shared one would (showsToolbar).
+    toolbar?: ReactNode
+    // The caller's toolbar shows in the empty state too: a filter of it hides records that
+    // exist (the inventory adjustments' Made by Books chip, while Books made one).
+    keepsToolbarWhenEmpty?: boolean
+    // Drawn in place of the no-match and all-inactive states while a filter of the caller's
+    // own hides every row (the products' Low stock chip: "No items are low on stock.").
+    // Undefined keeps the shared states.
+    filteredEmpty?: ReactNode
+}
+
+function EmptyBody({
+    kind,
+    filteredEmpty,
+    children,
+}: {
+    kind: ReturnType<typeof emptyKindFor>
+    filteredEmpty: ReactNode | undefined
+    children: ReactNode
+}) {
+    const isFiltered = kind === 'no-match' || kind === 'all-inactive'
+    if (isFiltered && filteredEmpty !== undefined) return <>{filteredEmpty}</>
+    return <>{children}</>
+}
+
+function Toolbar<Row>({
+    isVisible,
+    toolbar,
+    listPrefix,
+    placeholder,
+    list,
+    isWide,
+}: {
+    isVisible: boolean
+    toolbar: ReactNode | undefined
+    listPrefix: string
+    placeholder: string
+    list: RecordListState<Row>
+    isWide: boolean
+}) {
+    if (!isVisible) return null
+    if (toolbar !== undefined) return <>{toolbar}</>
+    return (
+        <ListToolbar
+            isVisible
+            testIdPrefix={listPrefix}
+            placeholder={placeholder}
+            list={list}
+            isWide={isWide}
+        />
+    )
 }
 
 function BackLink({ testID, onPress }: { testID: string; onPress: () => void }) {
@@ -162,8 +216,8 @@ function LoadingBody({ isVisible, testID }: { isVisible: boolean; testID: string
     )
 }
 
-// The frame every Books list shares: the header with All lists and New, the toolbar, the
-// banner, the loading and empty states, and the list's dialog. The list itself is the
+// The frame every Books list shares: the header with All lists and New, the caller's tab
+// strip, the toolbar (the shared one or the caller's), the banner, the loading and empty states, and the list's dialog. The list itself is the
 // caller's table (wide screens) or cards (phones), drawn only once the records are ready.
 export function RecordListFrame<Row>(props: RecordListFrameProps<Row>) {
     const { listPrefix, recordPrefix, copy, list, canWrite, openId } = props
@@ -175,7 +229,8 @@ export function RecordListFrame<Row>(props: RecordListFrameProps<Row>) {
     const onRetry = props.isLoadError ? props.onRetry : undefined
     const onDismissBanner = props.isLoadError ? undefined : props.onDismissBanner
     const isLoading = viewState === 'loading'
-    const showToolbar = showsToolbar(viewState)
+    const keepsToolbar = props.keepsToolbarWhenEmpty === true && viewState === 'empty'
+    const showToolbar = showsToolbar(viewState) || keepsToolbar
     const emptyKind = emptyKindFor(viewState)
     const table = isReady && isWide ? props.renderTable(selectedId) : null
     const cards = isReady && !isWide ? props.renderCards() : null
@@ -198,9 +253,11 @@ export function RecordListFrame<Row>(props: RecordListFrameProps<Row>) {
                 onBack={backToLists}
                 onNew={props.onNew}
             />
-            <ListToolbar
+            {props.tabs}
+            <Toolbar
                 isVisible={showToolbar}
-                testIdPrefix={listPrefix}
+                toolbar={props.toolbar}
+                listPrefix={listPrefix}
                 placeholder={copy.searchPlaceholder}
                 list={list}
                 isWide={isWide}
@@ -212,15 +269,17 @@ export function RecordListFrame<Row>(props: RecordListFrameProps<Row>) {
                 onDismiss={onDismissBanner}
             />
             <LoadingBody isVisible={isLoading} testID={`${listPrefix}-loading`} />
-            <ListEmptyState
-                kind={emptyKind}
-                testIdPrefix={listPrefix}
-                copy={copy}
-                canWrite={canWrite}
-                onNew={props.onNew}
-                onClearSearch={list.clearSearch}
-                onShowInactive={showInactive}
-            />
+            <EmptyBody kind={emptyKind} filteredEmpty={props.filteredEmpty}>
+                <ListEmptyState
+                    kind={emptyKind}
+                    testIdPrefix={listPrefix}
+                    copy={copy}
+                    canWrite={canWrite}
+                    onNew={props.onNew}
+                    onClearSearch={list.clearSearch}
+                    onShowInactive={showInactive}
+                />
+            </EmptyBody>
             {table}
             {cards}
             {props.dialog}

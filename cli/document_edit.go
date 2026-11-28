@@ -160,6 +160,7 @@ func rowUpdate(table *lineTable, position int, row map[string]any) map[string]an
 		}
 		body[f.Name] = row[f.Name]
 	}
+	table.setFlags(body, row)
 	return body
 }
 
@@ -214,7 +215,9 @@ func correctionInput(doc *document, current record, in documentInput) documentIn
 
 // writableRows are stored rows as the rows of an input: the values a caller
 // may send, and nothing Books computes (a read-only field, or a field the
-// table's `computed` names for this row).
+// table's `computed` names for this row), and each flag of the table as it is
+// stored: a copied line of free stock (value 0 with value_given true) stays free,
+// where setFlags would work it out again from the value as false.
 func writableRows(table *lineTable, stored []record) []map[string]any {
 	res := table.asResource()
 	rows := []map[string]any{}
@@ -223,6 +226,11 @@ func writableRows(table *lineTable, stored []record) []map[string]any {
 		for _, f := range res.writable() {
 			if value := line.values[f.Name]; value != nil && !table.computes(f.Name, line.cell) {
 				row[f.Name] = value
+			}
+		}
+		for _, flag := range table.Flags {
+			if value, ok := line.values[flag.Field].(bool); ok {
+				row[flag.Field] = value
 			}
 		}
 		rows = append(rows, row)

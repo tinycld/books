@@ -66,6 +66,7 @@ var productReferences = []productReference{
 	{collection: vendorCreditLinesCollection, field: "product", distinct: "vendor_credit", message: productOnVendorCreditsMessage},
 	{collection: inventoryAdjustmentLinesCollection, field: "product", distinct: "adjustment", message: productOnAdjustmentsMessage},
 	{collection: purchaseOrderLinesCollection, field: "product", distinct: "purchase_order", message: productOnPurchaseOrdersMessage},
+	{collection: binTransfersCollection, field: "product", distinct: "id", message: productOnBinTransfersMessage},
 }
 
 // The delete refusals of a product on invoice lines, counted by invoice, on
@@ -148,6 +149,9 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 	if err := checkStockTotalsKept(app, stored, r); err != nil {
 		return err
 	}
+	if err := checkLowStockKept(app, stored, r); err != nil {
+		return err
+	}
 	// Books' own write of the quantity on purchase orders skips the other
 	// checks, and checkOnPOWrite refuses it when it changes anything else
 	// (purchase_order_receipts.go).
@@ -155,6 +159,11 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 		return checkOnPOWrite(stored, r)
 	}
 	if err := checkOnPOKept(stored, r); err != nil {
+		return err
+	}
+	// A change of the reorder point changes the answer with no stock move.
+	r.Set("low_stock", isLowStock(r.GetFloat("reorder_point"), r.GetFloat("quantity_on_hand")))
+	if err := validateDefaultBin(app, stored, r); err != nil {
 		return err
 	}
 	if kind == "inventory" {
@@ -399,6 +408,21 @@ func productOnPurchaseOrdersMessage(count int) string {
 		return msgProductOnOnePurchaseOrder
 	}
 	return fmt.Sprintf(msgProductOnPurchaseOrders, count)
+}
+
+// The delete refusals of an item that was moved between bin locations: a move
+// between bins cannot be deleted, so the item stays.
+const (
+	msgProductOnOneBinTransfer = "This product or service is on 1 move between bin locations. Make it inactive instead."
+	msgProductOnBinTransfers   = "This product or service is on %d moves between bin locations. Make it inactive instead."
+)
+
+// productOnBinTransfersMessage counts the moves between bins of the item.
+func productOnBinTransfersMessage(count int) string {
+	if count == 1 {
+		return msgProductOnOneBinTransfer
+	}
+	return fmt.Sprintf(msgProductOnBinTransfers, count)
 }
 
 // productOnBillsMessage counts bills, draft, posted or void, not their

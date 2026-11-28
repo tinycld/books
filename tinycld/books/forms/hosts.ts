@@ -98,8 +98,8 @@ export const PRODUCT_HOST_KEY = 'books:product'
 // that is a rule of the form, so admins see it and may change it in Settings → Forms.
 // Taxable's description is the toggle's help text in the seeded form. The fields of an
 // Inventory item follow: its two accounts' neighbours in one row, the opening stock in
-// the next. Quantity on hand has a row of its own, because a new item does not show it
-// and a missing half would pull the next field into its row.
+// the next, then Reorder point and Default bin. The quantity on hand has no row: the item
+// page's figures show it.
 const PRODUCT_LAYOUT = {
     pages: [{ key: 'main', title: 'Product or service' }],
     fields: {
@@ -123,6 +123,7 @@ const PRODUCT_LAYOUT = {
             width: 'half',
             description: 'The quantity on hand at which you buy more.',
         },
+        default_bin: { width: 'half' },
     },
     rules: [
         {
@@ -810,6 +811,8 @@ const hosts: FormHostDefInput[] = [
             'quantity_on_hand',
             'stock_value',
             'quantity_on_po',
+            'default_bin',
+            'low_stock',
             'taxable',
             'inactive',
             'currency',
@@ -872,15 +875,6 @@ const hosts: FormHostDefInput[] = [
                 storage: 'rows',
                 required: false,
                 columns: [...BUNDLE_ITEM_COLUMNS],
-            },
-            {
-                key: 'quantity_on_hand',
-                label: 'Quantity on hand',
-                kind: 'custom',
-                storage: 'column',
-                required: false,
-                component: 'QuantityOnHandField',
-                chrome: 'cell',
             },
             {
                 key: 'price',
@@ -991,6 +985,16 @@ const hosts: FormHostDefInput[] = [
                 storage: 'column',
                 required: false,
                 component: 'QuantityField',
+                chrome: 'cell',
+            },
+            // '' is No bin. productDefinitionFor hides it while the book has no bin location.
+            {
+                key: 'default_bin',
+                label: 'Default bin',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'DefaultBinField',
                 chrome: 'cell',
             },
         ],

@@ -7,8 +7,10 @@ import { openNewMenu } from './new-menu-helpers'
 // reports) and checks that each screen opens with no console error and that the pressed
 // item is the one marked active (aria-current="page"). The Shortcuts are left out: a
 // shortcut is never marked active, the fixed item for its screen is. All reports is left
-// out too: it opens core's Reports hub, outside Books. Desktop only: the phone drawer draws
-// the same items from the same component.
+// out too: it opens core's Reports hub, outside Books. The New actions are pressed one New
+// group (Customers, Vendors, Other) per test, so a test stays bounded by its group and not
+// by the whole New menu. Desktop only: the phone drawer draws the same items from the same
+// component.
 
 const DESKTOP = { width: 1280, height: 800 }
 
@@ -40,6 +42,26 @@ async function itemIds(page: Page, prefix: string, leaveOut: (id: string) => boo
     return ids.filter(id => !leaveOut(id))
 }
 
+// The test ids of the New actions inside one visible New group, in sidebar order, read from
+// the page so a new action is covered without a change here.
+async function newGroupItemIds(page: Page, group: string) {
+    const groupView = page.getByTestId(`books-sidebar-new-group-${group}`).filter({ visible: true })
+    const items = groupView.locator('[data-testid^="books-sidebar-new-"]').filter({ visible: true })
+    await expect(items.first()).toBeVisible()
+    return items.evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid') ?? ''))
+}
+
+// Opens the New section and presses every action of one group. `holds` is an action the
+// group must show, checked before the presses start.
+async function pressNewGroup(page: Page, group: string, holds?: string) {
+    await openBooks(page)
+    const errors = collectErrors(page)
+    await openNewMenu(page)
+    const ids = await newGroupItemIds(page, group)
+    if (holds) expect(ids).toContain(holds)
+    for (const id of ids) await pressAndCheck(page, errors, id)
+}
+
 // Presses the item and checks it becomes the only active item of the sidebar, then that
 // no error was logged on the way.
 async function pressAndCheck(page: Page, errors: string[], testId: string) {
@@ -60,17 +82,16 @@ test.describe('books-sidebar-active: every sidebar item opens cleanly and shows 
         for (const id of ids) await pressAndCheck(page, errors, id)
     })
 
-    test('the New actions', async ({ page }) => {
-        await openBooks(page)
-        const errors = collectErrors(page)
-        await openNewMenu(page)
-        const ids = await itemIds(
-            page,
-            'books-sidebar-new-',
-            id => id === 'books-sidebar-new-toggle' || id.startsWith('books-sidebar-new-group-')
-        )
-        expect(ids).toContain('books-sidebar-new-invoice')
-        for (const id of ids) await pressAndCheck(page, errors, id)
+    test('the New actions of the Customers group', async ({ page }) => {
+        await pressNewGroup(page, 'customers', 'books-sidebar-new-invoice')
+    })
+
+    test('the New actions of the Vendors group', async ({ page }) => {
+        await pressNewGroup(page, 'vendors')
+    })
+
+    test('the New actions of the Other group', async ({ page }) => {
+        await pressNewGroup(page, 'other', 'books-sidebar-new-inventory-adjustment')
     })
 
     test('the reports', async ({ page }) => {

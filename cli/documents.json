@@ -1157,7 +1157,10 @@
                 { "name": "source", "type": "string", "readOnly": true, "help": "for an adjustment that Books made: the collection of the record it belongs to" },
                 { "name": "document", "type": "string", "readOnly": true, "help": "for an adjustment that Books made: the id of that record" },
                 { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
-                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the adjustment; `entry` prints it. Empty when the adjustment changes no value" }
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the adjustment; `entry` prints it. Empty when the adjustment changes no value" },
+                { "name": "value_change", "type": "integer", "readOnly": true, "help": "the change of the value of the stock in cents, the sum of the values of the adjustment's stock moves; Books writes it at the post, 0 before" },
+                { "name": "replaces", "type": "id", "ref": "inventory-adjustments", "createOnly": true, "help": "the posted manual adjustment this one corrects; `add` takes it, `edit` refuses it, and `edit` of a posted adjustment sets it on the correction. Books voids that one when this one is posted; give `--post` with it, as a draft correction cannot post once its original is void" },
+                { "name": "replaced_by", "type": "id", "ref": "inventory-adjustments", "readOnly": true, "help": "the adjustment that corrected this one; Books writes it when the correction is posted" }
             ],
             "lines": [
                 {
@@ -1167,11 +1170,13 @@
                     "parent": "adjustment",
                     "sort": "position,id",
                     "max": 500,
-                    "omit": ["adjustment", "position"],
+                    "omit": ["adjustment", "position", "posted_value", "value_given"],
+                    "flags": [{ "field": "value_given", "above0": ["quantity", "value"] }],
                     "fields": [
                         { "name": "product", "type": "id", "ref": "products", "required": true, "help": "the Inventory item" },
+                        { "name": "bin", "type": "id", "ref": "bins", "help": "the bin location the quantity changes in; empty for No bin; a line with no quantity change has none" },
                         { "name": "quantity", "type": "number", "help": "the change of the quantity, with at most 2 decimals: above 0 into stock, below 0 out of stock, 0 for a change of value only" },
-                        { "name": "value", "type": "integer", "help": "the change of the value of the stock, in cents. With a quantity above 0, it is the cost of that quantity. With a quantity below 0, leave it out: Books takes the cost from the costing method. With no quantity, it changes the value only, up or down" }
+                        { "name": "value", "type": "integer", "help": "the change of the value of the stock, in cents. With a quantity above 0, it is the cost of that quantity; 0 or left out takes the last known cost. With a quantity below 0, leave it out: Books takes the cost from the costing method. With no quantity, it changes the value only, up or down" }
                     ]
                 }
             ]

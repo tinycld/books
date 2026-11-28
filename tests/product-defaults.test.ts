@@ -132,6 +132,14 @@ describe('newProductValues', () => {
         })
     })
 
+    // inventory-adjust spec §3.7: Default bin starts at "No bin" (''); the form has no
+    // Quantity on hand field, so a new item's values hold none.
+    it('starts an Inventory item in No bin, with no quantity on hand value', () => {
+        const values = newProductValues('inventory', STOCK_ACCOUNTS)
+        expect(values.default_bin).toBe('')
+        expect(Object.keys(values)).not.toContain('quantity_on_hand')
+    })
+
     it('starts an Inventory item with no asset account when the chart has none', () => {
         const values = newProductValues('inventory', ACCOUNTS)
         expect(values.asset_account).toBe('')

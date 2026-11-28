@@ -56,6 +56,14 @@ describe('transactionActions', () => {
         )
     })
 
+    // Inventory adjustment spec §2: the adjustment is a New action of the Other column and
+    // names no party, so neither party page's New transaction menu lists it.
+    it('lists the Inventory adjustment action on no customer or vendor page', () => {
+        expect(NEW_ACTIONS.map(action => action.id)).toContain('inventory_adjustment')
+        expect(transactionActions('customer').map(a => a.id)).not.toContain('inventory_adjustment')
+        expect(transactionActions('vendor').map(a => a.id)).not.toContain('inventory_adjustment')
+    })
+
     it('leaves out an action that does not take a customer', () => {
         const actions = withReceivePayment(({ takesCustomer: _flag, ...rest }) => rest)
         expect(transactionActions('customer', actions).map(a => a.id)).toEqual([

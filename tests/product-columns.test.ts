@@ -106,6 +106,20 @@ describe('productColumnsFor', () => {
         expect(columnsOf('inventory', columns)).toEqual(columns)
     })
 
+    // Inventory-adjust spec §4: the client writes an item's default bin; low_stock
+    // is Books' own answer, and a write of it is refused, not dropped.
+    it('accepts a default bin and refuses a write of low_stock', () => {
+        expect(columnsOf('inventory', { name: 'Widget', default_bin: 'binaisle3000001' })).toEqual({
+            name: 'Widget',
+            default_bin: 'binaisle3000001',
+        })
+        const error = refusalOf('inventory', { name: 'Widget', low_stock: true })
+        const unknownKeys = error.issues.flatMap(issue =>
+            issue.code === 'unrecognized_keys' ? issue.keys : []
+        )
+        expect(unknownKeys).toEqual(['low_stock'])
+    })
+
     it('refuses opening quantity text', () => {
         const error = refusalOf('inventory', { name: 'A', opening_quantity: '12.5' })
         expect(error.issues.map(issue => issue.path[0])).toEqual(['opening_quantity'])
@@ -144,6 +158,7 @@ describe('EMPTY_PRODUCT_FIELDS', () => {
             opening_value: 0,
             opening_date: '',
             reorder_point: 0,
+            default_bin: '',
         })
     })
 })

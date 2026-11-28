@@ -8,7 +8,7 @@ import (
 // sales_document_cost_test.go bounds a sales document's: a read for each line
 // makes the count grow with the lines. Each bound is the measured value plus
 // 10 percent. Measured 2026-11-24: 153 for the bill, the same at 50 lines
-// (649 while each line's product and account were read one at a time); 3,851
+// (649 while each line's product and account were read one at a time); 4,109
 // for the adjustment (4,349 then). The adjustment still grows by 15 statements
 // a line: each line writes a stock move and a cost layer, and PocketBase
 // checks the relations of every row it saves. After the purchase postings

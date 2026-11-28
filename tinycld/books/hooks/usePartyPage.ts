@@ -4,17 +4,13 @@ import { useState } from 'react'
 import { type RecordChildState, usePublishDirty } from '../components/RecordChild'
 import type { PartyTab } from '../lib/party-page-tabs'
 import { partyTabOf } from '../lib/party-page-tabs'
+import { hasFieldErrors } from '../lib/root-errors'
 import type { DocumentPartyKey } from '../lib/sales-document-kinds'
 import { type RecordFormStore, useDeletingRecord } from '../stores/record-form-store'
 import { useBooksAccess } from './useBooksAccess'
 import { usePartyNotesForm } from './usePartyNotesForm'
 import { useIsShowingRecord } from './useRecordNavigation'
 import type { RecordSaveFollowUps } from './useRecordSave'
-
-// Whether a form holds an error on a field (not only on its root).
-function hasFieldErrors(errors: object) {
-    return Object.keys(errors).some(key => key !== 'root')
-}
 
 // The page stays after its Details save, in place of the default leave.
 function stayOnPage() {}

@@ -9,8 +9,11 @@ const DELETE_CONFIRM: DeleteDialogConfirm = {
     isDestructive: true,
 }
 
+// What the dialog reads of the product: a list row and an item page's record both fit.
+type DeletedProduct = Pick<ProductRecord, 'id' | 'name' | 'type'>
+
 interface DeleteProductDialogProps {
-    product: ProductRecord | null
+    product: DeletedProduct | null
     actions: ReturnType<typeof useProductActions>
     // The product is open beside the list with unsaved edits, which the delete drops.
     isOpenAndDirty: boolean

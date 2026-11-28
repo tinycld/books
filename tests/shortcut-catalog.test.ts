@@ -127,6 +127,21 @@ describe('newTargets', () => {
         expect(refs.indexOf('bill')).toBe(refs.indexOf('purchase_order') + 1)
     })
 
+    // Inventory adjustment spec §2: the catalog lists "New inventory adjustment" right after
+    // "New product or service", at the adjustment's new route, for writers.
+    it('lists New inventory adjustment right after New product or service', () => {
+        const refs = NEW_TARGETS.map(target => target.shortcut.ref)
+        expect(
+            NEW_TARGETS.find(target => target.shortcut.ref === 'inventory_adjustment')
+        ).toMatchObject({
+            label: 'New inventory adjustment',
+            href: 'books/inventory-adjustments/new',
+            needsWrite: true,
+        })
+        expect(refs.indexOf('inventory_adjustment')).toBe(refs.indexOf('product') + 1)
+        expect(refs.at(-1)).toBe('inventory_adjustment')
+    })
+
     it('leaves out an action that is not available', () => {
         const targets = newTargets([
             action('a', 'Alpha'),

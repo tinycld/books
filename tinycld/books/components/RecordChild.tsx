@@ -26,6 +26,9 @@ interface RecordFormBodyProps {
     testIdPrefix: string
     // The content column of each row; the surface's column by default.
     rowClassName?: string
+    // False: the form draws no scroll of its own, for a page whose one scroll holds it
+    // (an Inventory item's Details tab). Its rows are then in one content column.
+    scrolls?: boolean
 }
 
 // The core renderer owns the scroll view; each row is the surface's content column.
@@ -35,13 +38,16 @@ export function RecordFormBody({
     surface,
     testIdPrefix,
     rowClassName,
+    scrolls = true,
 }: RecordFormBodyProps) {
-    const scroll = { rowClassName: rowClassName ?? formRowClassFor(surface) }
+    const columnClass = rowClassName ?? formRowClassFor(surface)
+    const scroll = scrolls ? { rowClassName: columnClass } : undefined
+    const wrapperClass = scrolls ? 'flex-1 pt-4' : `pt-4 ${columnClass}`
     // A host field that fills a sibling (the name suggests the code) reads the form
     // through `useFormContext`, as the document forms' fields do.
     return (
         <FormProvider {...state.form}>
-            <View className="flex-1 pt-4">
+            <View className={wrapperClass}>
                 <FormRenderer
                     layout="sections"
                     host={state.host}

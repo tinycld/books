@@ -54,6 +54,7 @@ func rowCreateOp(table *lineTable, id string, position int, row map[string]any) 
 	body := maps.Clone(row)
 	body[table.Parent] = id
 	body["position"] = position
+	table.setFlags(body, row)
 	return createOp(table.Collection, rowLabel(table, position), body)
 }
 

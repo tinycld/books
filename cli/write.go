@@ -17,6 +17,9 @@ func inputSchema(res *resource, create bool) map[string]any {
 	props := map[string]any{}
 	required := []string{}
 	for _, f := range res.writable() {
+		if f.CreateOnly && !create {
+			continue
+		}
 		prop := fieldSchema(f)
 		if f.Required {
 			required = append(required, f.Name)
@@ -96,6 +99,9 @@ func checkInput(res *resource, body map[string]any, create bool) error {
 		}
 		if f.ReadOnly {
 			return usagef("%q is set by the server: leave it out of --input", name)
+		}
+		if f.CreateOnly && !create {
+			return usagef("%q is taken by `add` only: `edit` does not change it", name)
 		}
 		if err := checkValue(f, body[name]); err != nil {
 			return err

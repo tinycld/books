@@ -40,6 +40,12 @@ const (
 // itself (txmarks.go): the guards let those writes through.
 const markSystemAdjustment = "books.adjustment.system"
 
+// markAdjustmentPostedValues marks an adjustment while its post writes the
+// posted_value of its lines (writeLinePostedValues): the line guard lets those
+// writes through. It is not markSystemAdjustment, whose clear would end the
+// mark of newSystemAdjustment before it saves the adjustment.
+const markAdjustmentPostedValues = "books.adjustment.posted_values"
+
 // Refusal texts of an adjustment's post. The post names a line's fault by the
 // line's place, from 1 ("Line 2: Enter a quantity change, ...").
 const (
@@ -53,6 +59,15 @@ const (
 	msgAdjustmentAccountAsset  = "Choose an adjustment account other than the inventory asset account of %s."
 
 	msgAdjustmentOpeningNegative = "An opening quantity cannot be below 0."
+
+	// A line's bin location (inventory-adjust spec §4): a line that changes no
+	// quantity moves no stock, so it names no bin.
+	msgAdjustmentValueHasNoBin = "A value change has no bin."
+
+	// A correction's replaces (inventory-adjust spec §3.4). %s is the replaced
+	// adjustment's name (inventoryAdjustmentName): "Inventory adjustment IA-3".
+	msgAdjustmentNotReplaceable  = "%s is not a posted adjustment you made."
+	msgAdjustmentCorrectedBefore = "%s was corrected before."
 )
 
 // adjustmentLineFault is why Books cannot cost a line with the quantity change
@@ -70,12 +85,36 @@ func adjustmentLineFault(qty, value int64) string {
 	return ""
 }
 
+// adjustmentBinFault is why a line with the quantity change qty (hundredths)
+// cannot move stock in the bin location bin ("" is No bin), or "" when it
+// can: a line that changes no quantity names no bin, and a bin is active.
+// bins holds the rows of the bins the lines name (recordsByID).
+func adjustmentBinFault(bins map[string]*core.Record, bin string, qty int64) string {
+	if bin == "" {
+		return ""
+	}
+	if qty == 0 {
+		return msgAdjustmentValueHasNoBin
+	}
+	row, err := recordOf(bins, bin)
+	if err != nil {
+		return msgBinMissing
+	}
+	if row.GetBool("inactive") {
+		return fmt.Sprintf(msgBinInactive, row.GetString("name"))
+	}
+	return ""
+}
+
 // adjustmentLineInput is one line of an adjustment Books makes: a signed
 // quantity change and a signed value change in cents, either of which may be 0.
+// Bin is the line's bin location ("" is No bin); only an opening line names
+// one (syncOpeningStock: the item's default bin of the save that posts it).
 type adjustmentLineInput struct {
 	Product  string
 	Quantity float64
 	Value    int64
+	Bin      string
 }
 
 // systemAdjustment is an adjustment Books makes itself. Source and Document
@@ -88,7 +127,9 @@ type systemAdjustment struct {
 	// Replaces is the id of the posted adjustment this one takes the place
 	// of ("" for none). That one is voided, and its stock moves leave in the
 	// replay that brings this one's in, so a document after them is re-costed
-	// once, for the net change.
+	// once, for the net change. Books made the re-post, so neither row names
+	// the other: replaces and replaced_by link only a person's correction
+	// (inventory-adjust spec §4).
 	Replaces string
 	Lines    []adjustmentLineInput
 }
@@ -127,6 +168,7 @@ func newSystemAdjustment(tx core.App, a systemAdjustment) (*core.Record, error) 
 		line.Set("product", l.Product)
 		line.Set("quantity", l.Quantity)
 		line.Set("value", l.Value)
+		line.Set("bin", l.Bin)
 		line.Set("position", i)
 		if err := tx.Save(line); err != nil {
 			return nil, fmt.Errorf("books: write an inventory adjustment line: %w", err)
@@ -134,13 +176,7 @@ func newSystemAdjustment(tx core.App, a systemAdjustment) (*core.Record, error) 
 	}
 	r.Set("status", statusPosted)
 	r.Set("posted_by", a.Actor)
-	now := time.Now()
-	if a.Replaces != "" {
-		if err := retireAdjustment(tx, a.Replaces, a.Actor, now); err != nil {
-			return nil, err
-		}
-	}
-	if err := postAdjustmentReplacing(tx, r, a.Replaces, now); err != nil {
+	if err := postAdjustmentReplacing(tx, r, a.Replaces, time.Now()); err != nil {
 		return nil, err
 	}
 	if err := tx.Save(r); err != nil {
@@ -163,8 +199,13 @@ func postInventoryAdjustment(tx core.App, r *core.Record, now time.Time) error {
 }
 
 // postAdjustmentReplacing is postInventoryAdjustment for an adjustment that
-// takes the place of the posted adjustment replaces ("" for none), whose
-// stock moves and re-costs go in the same replay (postDocumentStock).
+// takes the place of the posted adjustment replaces ("" for none): that one
+// is voided by r's poster (retireAdjustment), and its stock moves and re-costs
+// go in the same replay (postDocumentStock). It names r in replaced_by only
+// when r names it in replaces, a person's correction; a re-post Books makes
+// (newSystemAdjustment) links neither. The post writes value_change, the sum
+// of the values of r's own stock moves (of a re-cost: the drift it posts), and
+// stamps r's number on them.
 func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now time.Time) error {
 	lines, err := docLineRecords(tx, inventoryAdjustmentLinesCollection, "adjustment", r.Id)
 	if err != nil {
@@ -173,14 +214,33 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 	if len(lines) == 0 {
 		return refuse(msgAdjustmentNoLines)
 	}
+	// posted_by is the request's user (stampActor), or the poster a Go caller
+	// or a superuser's request names: stampActor writes nothing for a
+	// superuser, so the replaced adjustment is voided as the poster.
 	actor := r.GetString("posted_by")
+	if replaces != "" {
+		by := ""
+		if r.GetString("replaces") == replaces {
+			by = r.Id
+		}
+		if err := retireAdjustment(tx, replaces, by, actor, now); err != nil {
+			return err
+		}
+	}
 	var posting []postingLine
+	// The adjustment's own stock moves; a re-cost has none.
+	var own []*core.Record
+	// The value the post changes (value_change): the sum of own's values, or
+	// for a re-cost the drift of the moves it re-costs, the amount its entry
+	// posts on their asset accounts.
+	var value int64
 	if r.GetString("kind") == adjustmentKindRecost {
 		moves, err := documentStockMoves(tx, r.GetString("source"), r.GetString("document"))
 		if err != nil {
 			return err
 		}
 		posting = stockDriftLines(moves)
+		value = stockDrift(moves)
 		if err := markStockPosted(tx, moves); err != nil {
 			return err
 		}
@@ -193,11 +253,14 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 		if err != nil {
 			return err
 		}
-		moves, err := postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, replaces, r.GetString("date"), inputs)
+		own, err = postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, replaces, r.GetString("date"), inputs)
 		if err != nil {
 			return err
 		}
-		posting = stockCostLines(moves)
+		posting = stockCostLines(own)
+		for _, m := range own {
+			value += int64(m.GetInt("value"))
+		}
 	}
 	if len(posting) == 0 {
 		if err := checkStockDay(tx, actor, r.GetString("date"), now); err != nil {
@@ -221,8 +284,48 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 		r.Set("sequence", entry.GetInt("sequence"))
 		r.Set("entry", entry.Id)
 	}
+	if err := numberPostedMoves(tx, own, inventoryAdjustmentsCollection, r.Id, r.GetString("number")); err != nil {
+		return err
+	}
+	if err := writeLinePostedValues(tx, r, lines, own); err != nil {
+		return err
+	}
+	r.Set("value_change", value)
 	r.Set("posted_at", now)
 	r.Set("sort_key", salesDocSortKey(r))
+	return nil
+}
+
+// writeLinePostedValues writes each line's posted_value at the post of r: the
+// sum of the values of the line's own stock moves (own), or for a re-cost,
+// whose lines have no move, the line's value, the drift Books posts for it.
+// The read view shows it for a posted and a void line, so it stays when a void
+// deletes the moves and when a later re-cost changes their values. Each line
+// whose value changes is saved as a record, so the client gets it by
+// realtime; a line that stays 0 is not written. The line guard lets the write
+// through under markAdjustmentPostedValues and refuses posted_value from
+// anyone else.
+func writeLinePostedValues(tx core.App, r *core.Record, lines, own []*core.Record) error {
+	posted := map[string]int{}
+	if r.GetString("kind") == adjustmentKindRecost {
+		for _, l := range lines {
+			posted[l.Id] = l.GetInt("value")
+		}
+	} else {
+		for _, m := range own {
+			posted[m.GetString("line")] += m.GetInt("value")
+		}
+	}
+	defer setTxMark(tx, markAdjustmentPostedValues, r.Id)()
+	for _, l := range lines {
+		if l.GetInt("posted_value") == posted[l.Id] {
+			continue
+		}
+		l.Set("posted_value", posted[l.Id])
+		if err := tx.SaveNoValidate(l); err != nil {
+			return fmt.Errorf("books: write the posted value of an adjustment line: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -291,10 +394,18 @@ func adjustmentStockInputs(tx core.App, r *core.Record, lines []*core.Record, ac
 		kind = stockKindOpening
 	}
 	ids := make([]string, 0, len(lines))
+	var binIDs []string
 	for _, l := range lines {
 		ids = append(ids, l.GetString("product"))
+		if bin := l.GetString("bin"); bin != "" {
+			binIDs = append(binIDs, bin)
+		}
 	}
 	products, err := recordsByID(tx, "books_products", ids)
+	if err != nil {
+		return nil, err
+	}
+	bins, err := recordsByID(tx, binsCollection, binIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -318,20 +429,34 @@ func adjustmentStockInputs(tx core.App, r *core.Record, lines []*core.Record, ac
 			return nil, refuseNamedField("account", msgAdjustmentAccountAsset, product.GetString("name"))
 		}
 		qty, value := qtyHundredths(l.GetFloat("quantity")), int64(l.GetInt("value"))
+		// The line names its bin ("" is No bin): an adjustment line never takes
+		// the item's default bin. The opening line Books writes holds the
+		// default bin of the item's own save, which the stored product row does
+		// not hold yet (syncOpeningStock).
 		in := stockMoveInput{
 			Product: product.Id, Kind: kind, Source: inventoryAdjustmentsCollection, Document: r.Id, Line: l.Id,
 			Date: r.GetString("date"), Qty: qty, AssetAccount: asset, OffsetAccount: account,
+			Bin: l.GetString("bin"), BinNamed: true,
 		}
 		if fault := adjustmentLineFault(qty, value); fault != "" {
 			return nil, refuse(msgAdjustmentLineFault, i+1, fault)
+		}
+		// Books chose the opening line's bin when the item named it its default
+		// bin; a bin that became inactive since keeps the item's opening stock.
+		if kind != stockKindOpening {
+			if fault := adjustmentBinFault(bins, in.Bin, qty); fault != "" {
+				return nil, refuse(msgAdjustmentLineFault, i+1, fault)
+			}
 		}
 		// A negative opening quantity would be Given at 0 as a removal, which
 		// the costing cannot price.
 		if kind == stockKindOpening && qty < 0 {
 			return nil, refuse(msgAdjustmentLineFault, i+1, msgAdjustmentOpeningNegative)
 		}
-		// An opening quantity comes in at the value the item gives, 0 too.
-		if qty == 0 || value > 0 || kind == stockKindOpening {
+		// An opening quantity comes in at the value the item gives, 0 too. An
+		// increase comes in at its value when the writer typed one (value_given,
+		// 0 too: free stock), else at the last cost.
+		if qty == 0 || value > 0 || (qty > 0 && l.GetBool("value_given")) || kind == stockKindOpening {
 			in.Given, in.Value = true, value
 		}
 		inputs = append(inputs, in)
@@ -374,9 +499,10 @@ func voidAdjustmentEntry(tx core.App, r *core.Record, actor string, now time.Tim
 }
 
 // retireAdjustment voids the posted adjustment id that another adjustment
-// replaces: its entry is voided and it becomes void, but its stock moves stay
-// for the replacing adjustment's post to take away (postDocumentStock).
-func retireAdjustment(tx core.App, id, actor string, now time.Time) error {
+// takes the place of: its entry is voided, it becomes void and names by in
+// replaced_by ("" for a re-post Books makes), but its stock moves stay for the
+// replacing adjustment's post to take away (postDocumentStock).
+func retireAdjustment(tx core.App, id, by, actor string, now time.Time) error {
 	old, err := tx.FindRecordById(inventoryAdjustmentsCollection, id)
 	if err != nil {
 		return fmt.Errorf("books: read the adjustment to replace: %w", err)
@@ -388,6 +514,7 @@ func retireAdjustment(tx core.App, id, actor string, now time.Time) error {
 	old.Set("status", statusVoid)
 	old.Set("voided_by", actor)
 	old.Set("voided_at", now)
+	old.Set("replaced_by", by)
 	if err := tx.Save(old); err != nil {
 		return fmt.Errorf("books: void the replaced inventory adjustment: %w", err)
 	}

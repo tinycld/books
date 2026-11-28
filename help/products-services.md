@@ -54,7 +54,7 @@ Sales price is the price you usually charge. Income account is the account that 
 
 If you also buy the item, turn on I purchase this from a vendor to show Purchase description, Cost and Expense account. Cost is what you usually pay, and Expense account is the account that a purchase of this item goes to.
 
-An Inventory item is always purchased, so it has no switch, and its Expense account is named Cost of goods sold account. It also has an Inventory asset account, a Preferred vendor, a Reorder point, opening stock and a Quantity on hand. See [Inventory](help://books:inventory).
+An Inventory item is always purchased, so it has no switch, and its Expense account is named Cost of goods sold account. It also has an Inventory asset account, a Preferred vendor, a Reorder point, a Default bin (when the book has a bin) and opening stock, and the form has no Quantity on hand field: the item opens on its own page, whose On hand figure shows it, over the tabs Stock, Bins (how many each bin location holds) and Details (the form). See [Inventory](help://books:inventory).
 
 ## Taxable
 
@@ -67,6 +67,14 @@ A bundle is a list of items that you sell together. To add an item to a bundle, 
 A bundle holds Services, Non-inventory items and Inventory items, so a bundle cannot contain another bundle. A bundle has no price, cost or accounts of its own.
 
 When you pick a bundle on an invoice line, Books adds one line for each item in the bundle and a subtotal line under them. See [Invoices](help://books:invoices). An Inventory item in the bundle is taken from its own quantity on hand when the sale posts.
+
+## Stock in the list
+
+The Type cell of an Inventory item shows its quantity on hand under the type, for example "36 on hand". A low item (its reorder point is above 0 and its quantity on hand is at or below it) shows "Low · 3 on hand" in the warning color. On a phone, the card of an Inventory item shows its stock at the end of its type line, for example "Inventory · $289.00 · 36 on hand", and a low item has the badge Low stock. A Service, a Non-inventory item and a bundle show no stock.
+
+To see only the low items, turn on the chip Low stock above the list. When no item is low, the list shows "No items are low on stock." To see every item again, turn the chip off. See [Inventory](help://books:inventory).
+
+The tabs Inventory adjustments and Bin locations beside Products and services open the [inventory adjustments](help://books:inventory-adjustments) and the [bin locations](help://books:bin-locations).
 
 ## Find a product or service
 

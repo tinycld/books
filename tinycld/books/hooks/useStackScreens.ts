@@ -112,6 +112,23 @@ export function usePopToRecordBelow(kindRoute: string): (id: string) => boolean 
     }
 }
 
+// For a screen of a child stack (its root route is the focused route of the Books root
+// stack): pops that root route when the root route right below it is `recordRoute` with
+// any record on top (`<recordRoute>/[id]`, whatever its id), and gives false when it is
+// not, so the caller leaves its own way. It reads the stack when it is called; a screen
+// outside a nested stack has no parent state.
+export function usePopToRecordPageBelow(recordRoute: string): () => boolean {
+    const navigation = useNavigation()
+    return () => {
+        const state = navigation.getParent?.()?.getState()
+        const own = state?.routes[state.index]
+        if (state === undefined || own === undefined) return false
+        if (kindRouteBelowShowing(state, own.key, recordRoute, null) < 0) return false
+        router.back()
+        return true
+    }
+}
+
 // For the focused screen of the Books root stack (the caller's, while it is shown), opened
 // over the kind route `kindRoute` with the record `oldId` on top of its child stack: removes
 // the focused screen and puts the record `newId` in the place of `oldId` in that child

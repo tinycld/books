@@ -93,6 +93,13 @@
             "sort": "sort_key,id"
         },
         {
+            "name": "bins-every-flag",
+            "resource": "bins",
+            "args": ["--search", "nothinghasthis1"],
+            "filter": "inactive = false && (name ~ \"nothinghasthis1\")",
+            "sort": "sort_key,id"
+        },
+        {
             "name": "statements-every-flag",
             "resource": "statements",
             "args": ["--customer", "nothinghasthis1", "--type", "open_items", "--search", "nothinghasthis1"],
@@ -299,6 +306,29 @@
             "args": ["--product", "prodwidget00001"],
             "filter": "product = \"prodwidget00001\"",
             "sort": "product,date,position,id"
+        },
+        {
+            "name": "inventory-bin-stock-of-a-product",
+            "resource": "inventory",
+            "view": "bin-stock",
+            "args": ["--product", "prodwidget00001"],
+            "filter": "product = \"prodwidget00001\"",
+            "sort": "product,bin,id"
+        },
+        {
+            "name": "inventory-bin-stock-every-flag",
+            "resource": "inventory",
+            "view": "bin-stock",
+            "args": ["--product", "prodwidget00001", "--bin", "nothinghasthis1"],
+            "filter": "product = \"prodwidget00001\" && bin = \"nothinghasthis1\"",
+            "sort": "product,bin,id"
+        },
+        {
+            "name": "bin-transfers-list",
+            "resource": "bin-transfers",
+            "args": [],
+            "filter": "",
+            "sort": "-created,id"
         },
         {
             "name": "inventory-adjustments-every-flag",

@@ -27,6 +27,8 @@ export const productColumnsSchema = z.strictObject({
     opening_value: z.number().optional(),
     opening_date: optionalText,
     reorder_point: z.number().optional(),
+    // '' is No bin. low_stock is not a key: the server keeps it, and refuses a write.
+    default_bin: optionalText,
 })
 
 export type ProductColumns = z.infer<typeof productColumnsSchema>
@@ -47,8 +49,8 @@ const BUNDLE_EMPTY_COLUMNS: ReadonlyMap<string, unknown> = new Map<string, unkno
 const MONEY_KEYS: ReadonlySet<string> = new Set(['price', 'cost', 'opening_value'])
 
 // Books counts these from the posted transactions; the server refuses a write of them
-// ("Books sets the quantity on hand and the stock value itself."). The form shows the
-// quantity on hand as text, so its value can reach a save only as what was loaded.
+// ("Books sets the quantity on hand and the stock value itself."). The form has no field
+// for either, but the loaded record's values can reach a save, so they are dropped here.
 const SERVER_OWNED_KEYS: ReadonlySet<string> = new Set(['quantity_on_hand', 'stock_value'])
 
 const isMoneyText = (key: string, value: unknown) =>
@@ -100,6 +102,7 @@ export const EMPTY_PRODUCT_FIELDS: Required<ProductColumns> = {
     opening_value: 0,
     opening_date: '',
     reorder_point: 0,
+    default_bin: '',
 }
 
 // The base of an insert, so a column the form left out is stored empty. The `satisfies`

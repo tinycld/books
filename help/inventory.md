@@ -1,7 +1,7 @@
 ---
 title: Inventory
 summary: Count the goods you buy and sell, see what they cost, and choose FIFO or average cost.
-tags: [inventory, stock, quantity on hand, cost of goods sold, FIFO, average cost, reorder point]
+tags: [inventory, stock, quantity on hand, cost of goods sold, FIFO, average cost, reorder point, low stock, item page]
 order: 33
 ---
 
@@ -16,7 +16,8 @@ An Inventory item has these fields:
 - **Inventory asset account**: the account that holds the value of the stock. It must be an Other current asset account. If you choose none, Books uses the Inventory asset account of your chart, and creates that account when the chart has none. You cannot change the account after the item has stock transactions.
 - **Cost of goods sold account**: the account that the cost goes to when you sell the item. The list shows your active Cost of goods sold accounts only. A new item starts with the first active Cost of goods sold account of your chart, and you can pick another. If you choose none, Books uses the first Supplies and materials Cost of goods sold account when you save the item, and creates a Cost of goods sold account when the chart has none of that kind.
 - **Preferred vendor**: the vendor you usually buy the item from.
-- **Reorder point**: the quantity on hand at which you buy more.
+- **Reorder point**: the quantity on hand at which you buy more. See Low stock below.
+- **Default bin**: the [bin location](help://books:bin-locations) that a purchase or a sale of the item moves its stock in. The field shows while the book has a bin location.
 - **Cost**: what you usually pay. A bill or an expense line starts with this rate.
 
 An Inventory item is always purchased, so the form has no I purchase this from a vendor switch. A new Inventory item starts taxable. An item keeps its type: an Inventory item cannot become another type, and another item cannot become an Inventory item.
@@ -31,7 +32,9 @@ Saving an item with an opening quantity is an inventory transaction: it locks th
 
 ## Quantity on hand
 
-To see how many you have, open the item. Quantity on hand shows on the form. You cannot type it: Books sets it from the transactions you post. A quantity can have up to 2 decimals.
+To see how many you have, open the item. Its page shows On hand, On PO, Stock value and Average cost (or Next cost under FIFO) over the tabs Stock, Bins and Details; the Stock tab lists the item's movements, newest first, and the Bins tab shows how many each bin location holds and the recent moves between them. While the book has a bin location, Move stock (M) on the item page moves a quantity from one bin location to another; it changes no cost and no journal entry. See [Bin locations](help://books:bin-locations). The quantity on hand is not on the form, and you cannot type it: Books sets it from the transactions you post. To change it after a count or a loss, press Adjust stock (A) on the item page: see [Inventory adjustments](help://books:inventory-adjustments). A quantity can have up to 2 decimals.
+
+To move between the tabs, press ⌥1 (Stock), ⌥2 (Bins) or ⌥3 (Details).
 
 These transactions change the quantity on hand when you post them:
 
@@ -39,12 +42,17 @@ These transactions change the quantity on hand when you post them:
 - An [invoice](help://books:invoices) or a [sales receipt](help://books:sales-receipts) takes from it. Its journal entry also moves the cost of the goods from the inventory asset account to the cost of goods sold account.
 - A [credit memo](help://books:credit-memos) or a [refund receipt](help://books:refund-receipts) puts the returned goods back. A return that comes from a sale line comes back at the cost of that sale; another return comes back at the last known cost of the item.
 - A [vendor credit](help://books:vendor-credits) takes out the goods you return to the vendor.
+- An [inventory adjustment](help://books:inventory-adjustments) adds to it or takes from it, for example after a stock count.
 
 A draft changes nothing. When you void a transaction, Books takes its stock change back.
 
 ## On purchase order
 
-A [purchase order](help://books:purchase-orders) does not change the quantity on hand: the stock comes in only when you post the bill made from the order. Until then, Books counts the quantity on PO of each product: the quantity on the open purchase orders that is not received yet. When a posted bill receives a line of an order, or an order is closed, the quantity on PO goes down. To see it, build a report over Products with its field On purchase order (see [Reports](help://books:reports)), or run `tinycld books products show` (see [Command line](help://books:command-line)).
+A [purchase order](help://books:purchase-orders) does not change the quantity on hand: the stock comes in only when you post the bill made from the order. Until then, Books counts the quantity on PO of each product: the quantity on the open purchase orders that is not received yet. When a posted bill receives a line of an order, or an order is closed, the quantity on PO goes down. To see it, open the item: its page shows it as On PO ("—" when nothing is on order). You can also build a report over Products with its field On purchase order (see [Reports](help://books:reports)), or run `tinycld books products show` (see [Command line](help://books:command-line)).
+
+## Low stock
+
+An item is low when its reorder point is above 0 and its quantity on hand is at or below the reorder point. The quantity on PO does not count. A low item shows the badge Low stock on its page, and "Low · 3 on hand" (with its own quantity) in the list of products and services. The chip Low stock of that list shows only the low items (see [Products and services](help://books:products-services)). To set the reorder point, open the item, choose the Details tab, type the Reorder point and save. Books works out again if the item is low each time its quantity on hand or its reorder point changes.
 
 ## Bundles with Inventory items
 

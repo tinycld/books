@@ -18,6 +18,13 @@ import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { REVIEW_SEED_ENTRIES, REVIEW_SEED_STATEMENT } from '../tinycld/books/lib/for-review-fixture'
 import { GENERAL_LEDGER_LONG_SECTION } from '../tinycld/books/lib/general-ledger-fixture'
 import {
+    ADJUSTMENT_IDS,
+    adjustmentOf,
+    BIN_IDS,
+    BINS,
+    INVENTORY_ITEMS,
+} from '../tinycld/books/lib/inventory-adjust-fixture'
+import {
     orderLineOpenAmount,
     orderLineOpenQuantity,
 } from '../tinycld/books/lib/purchase-order-status'
@@ -2733,5 +2740,90 @@ describe('seedReconciliationReport', () => {
         expect(before).toBeGreaterThan(0)
         await seedReconciliationReport(pb, { user: USER }, accounts)
         expect(writes.slice(before)).toEqual([])
+    })
+})
+
+// Inventory-adjust spec §4 Seed and checkpoint 2 Do step 6: the bins (all active), the
+// items with their default bins and opening stock, the scanner's bills, the replaced, the
+// posted (naming the replaced one in `replaces`) and the draft adjustment, the newest move
+// between bins, and last Back room made inactive. The seed is a superuser, so stampActor
+// stamps nothing: each post and the transfer name the seed user themselves.
+describe('seedInventory', () => {
+    it('runs after seedPurchaseOrderBills and before seedBankMatch in the seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const bills = body.indexOf('seedPurchaseOrderBills(')
+        const inventory = body.indexOf('seedInventory(')
+        const bankMatch = body.indexOf('seedBankMatch(')
+        expect(bills).toBeGreaterThan(-1)
+        expect(inventory).toBeGreaterThan(bills)
+        expect(bankMatch).toBeGreaterThan(inventory)
+    })
+
+    it('writes the bins, items, adjustments and transfer in the order the server needs', async () => {
+        const seedInventory = (seedModule as Record<string, unknown>).seedInventory
+        expect(typeof seedInventory).toBe('function')
+        if (typeof seedInventory !== 'function') return
+        const { pb, writes } = recordingPb()
+        await seedInventory(pb, { user: USER }, seededAccounts())
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+
+        // The three bins, each created active, before any item that names one.
+        const binCreates = writes.filter(w => w.collection === 'books_bins' && w.op === 'create')
+        expect(binCreates.map(w => w.data.name).sort()).toEqual(BINS.map(bin => bin.name).sort())
+        for (const bin of binCreates)
+            expect(bin.data.inactive ?? false, String(bin.data.name)).toBe(false)
+        const itemNames = new Set(INVENTORY_ITEMS.map(item => item.name))
+        const itemCreates = writes.filter(
+            w =>
+                w.collection === 'books_products' &&
+                w.op === 'create' &&
+                itemNames.has(String(w.data.name))
+        )
+        expect(itemCreates.map(w => w.data.name).sort()).toEqual([...itemNames].sort())
+        const lastBin = Math.max(...binCreates.map(at))
+        for (const item of itemCreates)
+            expect(at(item), String(item.data.name)).toBeGreaterThan(lastBin)
+
+        // The replaced adjustment is posted before the create that names it in `replaces`.
+        const adjustments = writes.filter(w => w.collection === 'books_inventory_adjustments')
+        const replaced = adjustments.find(
+            w => w.op === 'create' && w.data.memo === adjustmentOf(ADJUSTMENT_IDS.replaced).memo
+        )
+        expect(replaced).toBeDefined()
+        if (replaced === undefined) return
+        const replacedPost = adjustments.find(
+            w => w.op === 'update' && w.id === replaced.id && w.data.status === 'posted'
+        )
+        const correction = adjustments.find(
+            w => w.op === 'create' && w.data.replaces === replaced.id
+        )
+        expect(replacedPost).toBeDefined()
+        expect(correction?.data.memo).toBe(adjustmentOf(ADJUSTMENT_IDS.posted).memo)
+        expect(at(replacedPost)).toBeLessThan(at(correction))
+
+        // Every post the seed sends names a poster; the transfer names its maker.
+        const posts = writes.filter(w => w.op === 'update' && w.data.status === 'posted')
+        expect(posts.length).toBeGreaterThan(0)
+        for (const post of posts) {
+            expect(post.data.posted_by, `${post.collection} ${post.id}`).toBe(USER.id)
+        }
+        const transfers = writes.filter(
+            w => w.collection === 'books_bin_transfers' && w.op === 'create'
+        )
+        expect(transfers).toHaveLength(1)
+        expect(transfers[0]?.data.created_by).toBe(USER.id)
+
+        // Last, Back room becomes inactive.
+        const backRoom = binCreates.find(
+            w => w.data.name === BINS.find(bin => bin.id === BIN_IDS.backRoom)?.name
+        )
+        const last = writes[writes.length - 1]
+        expect([last?.op, last?.collection, last?.id, last?.data.inactive]).toEqual([
+            'update',
+            'books_bins',
+            backRoom?.id,
+            true,
+        ])
     })
 })

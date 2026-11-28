@@ -62,6 +62,8 @@ export const INVOICE_PRODUCTS = [
         quantity_on_hand: 0,
         stock_value: 0,
         quantity_on_po: 0,
+        default_bin: '',
+        low_stock: false,
         taxable: false,
         inactive: false,
         currency: INVOICE_CURRENCY,

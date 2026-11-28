@@ -33,8 +33,13 @@ interface RecordSurfaceProps {
     isLeaveDisabled?: boolean
     // Set on the root view, so the form can tell when the surface has closed.
     surfaceRef?: Ref<ViewInstance>
-    // Drawn instead of the default panel or page header.
-    header?: ReactNode
+    // Drawn instead of the default panel or page header. `'in-body'`: the caller draws its
+    // header inside `children` (in the page's one scroll, an Inventory item's), so none is
+    // drawn here.
+    header?: ReactNode | 'in-body'
+    // The root's test id in place of `<prefix>-<surface>`: a record page that is one page
+    // on every surface (an Inventory item's) names itself once.
+    testID?: string
 }
 
 // Escape runs Cancel. The surface owns a `modal` scope, and every core layer (a menu, a
@@ -160,7 +165,8 @@ function SurfaceFooter({
     )
 }
 
-function SurfaceHeader({ header, ...props }: HeaderProps & { header: ReactNode }) {
+function SurfaceHeader({ header, ...props }: HeaderProps & { header: ReactNode | 'in-body' }) {
+    if (header === 'in-body') return null
     if (header) return <>{header}</>
     if (props.surface === 'panel') return <PanelHeader {...props} />
     return <PageHeader {...props} />
@@ -168,7 +174,8 @@ function SurfaceHeader({ header, ...props }: HeaderProps & { header: ReactNode }
 
 /**
  * The chrome around an open record: a header (the title and a ✕ in the panel,
- * "‹ <list>" and the title on the page, or the caller's `header`), the scrolling body
+ * "‹ <list>" and the title on the page, the caller's `header`, or none when the caller
+ * draws it in the body), the scrolling body
  * (`children`), and a footer that stays at the bottom. Only the header element differs
  * between surfaces, so the body and the form inside it stay mounted when the window
  * crosses the panel width. The root opts back into pointer events, which the child
@@ -187,13 +194,15 @@ export function RecordSurface({
     isLeaveDisabled = false,
     surfaceRef,
     header,
+    testID,
 }: RecordSurfaceProps) {
     const owner = useEscapeToLeave(testIdPrefix, onLeave, isLeaveDisabled)
+    const rootTestId = testID ?? `${testIdPrefix}-${surface}`
     return (
         <ScopeProvider owner={owner}>
             <View
                 ref={surfaceRef}
-                testID={`${testIdPrefix}-${surface}`}
+                testID={rootTestId}
                 pointerEvents="auto"
                 className="flex-1 bg-background"
             >

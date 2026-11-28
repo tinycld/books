@@ -48,9 +48,19 @@ describe('products fixture', () => {
             cost: 28_900,
             inactive: false,
             opening_quantity: 0,
+            default_bin: '',
+            low_stock: false,
         })
         expect(printer.expense_account_number).toBe('')
         expect(printer.asset_account).toBe('')
+    })
+
+    // Inventory-adjust spec §4: every full product row carries the two new columns,
+    // in no bin and not low, as a new row of the migration reads.
+    it('gives every product no default bin and low_stock false', () => {
+        for (const row of PRODUCTS) {
+            expect(row, row.id).toMatchObject({ default_bin: '', low_stock: false })
+        }
     })
 
     it("uses only the migration's product types", () => {

@@ -39,6 +39,7 @@ const host = hostDefSchema.parse({
         'opening_date',
         'quantity_on_hand',
         'stock_value',
+        'default_bin',
         'taxable',
         'inactive',
         'currency',
@@ -94,13 +95,6 @@ const host = hostDefSchema.parse({
             storage: 'column',
         },
         {
-            key: 'quantity_on_hand',
-            label: 'Quantity on hand',
-            kind: 'custom',
-            component: 'QuantityOnHandField',
-            storage: 'column',
-        },
-        {
             key: 'asset_account',
             label: 'Inventory asset account',
             kind: 'custom',
@@ -143,6 +137,13 @@ const host = hostDefSchema.parse({
             storage: 'column',
         },
         {
+            key: 'default_bin',
+            label: 'Default bin',
+            kind: 'custom',
+            component: 'DefaultBinField',
+            storage: 'column',
+        },
+        {
             key: 'items',
             label: 'Bundle items',
             kind: 'table',
@@ -155,13 +156,15 @@ const host = hostDefSchema.parse({
     ],
 })
 
+// inventory-adjust spec §3.6, §3.7: Default bin is an Inventory item's field; the
+// Quantity on hand row is gone (the item page's figures show it).
 const INVENTORY_ONLY = [
     'asset_account',
+    'default_bin',
     'opening_date',
     'opening_quantity',
     'opening_value',
     'preferred_vendor',
-    'quantity_on_hand',
     'reorder_point',
 ]
 
@@ -236,9 +239,24 @@ describe('productDefinitionFor', () => {
         expect(requiredKeys(result)).toEqual(['income_account', 'name', 'type'])
     })
 
-    it('hides the quantity on hand of a new Inventory item', () => {
+    it('shows every inventory field of a new Inventory item, Default bin among them', () => {
         const result = productDefinitionFor(defaultDefinitionFor(host), 'inventory', host, 'new')
-        expect(hiddenKeys(result)).toEqual(['items', 'purchases', 'quantity_on_hand'])
+        expect(hiddenKeys(result)).toEqual(['items', 'purchases'])
+    })
+
+    for (const mode of ['new', 'edit'] as const) {
+        it(`draws Default bin right after Reorder point on an Inventory item (${mode})`, () => {
+            const result = productDefinitionFor(defaultDefinitionFor(host), 'inventory', host, mode)
+            const shown = result.fields.filter(f => !f.hidden).map(f => f.key)
+            expect(shown.indexOf('default_bin')).toBe(shown.indexOf('reorder_point') + 1)
+            expect(shown).not.toContain('quantity_on_hand')
+        })
+    }
+
+    it('names no Quantity on hand built-in among the inventory fields', () => {
+        expect(INVENTORY_BUILTINS as readonly string[]).not.toContain('quantity_on_hand')
+        const product = hosts.find(h => h.key === 'books:product')
+        expect(product?.builtin.map(b => b.key)).not.toContain('quantity_on_hand')
     })
 
     it("names an Inventory item's expense account the cost of goods sold account", () => {

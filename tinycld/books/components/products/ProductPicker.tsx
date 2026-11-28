@@ -7,7 +7,11 @@ import type { ReactNode } from 'react'
 import { type PressableInstance, Text, View } from 'react-native'
 import { type LiveRecovery, mergeRecoveries } from '../../lib/live-recovery'
 import { PRODUCT_PICKER_LIMIT, productPickerOptions } from '../../lib/product-list'
-import { BUNDLE_ITEM_TYPES } from '../../lib/product-picker-types'
+import {
+    BUNDLE_ITEM_TYPES,
+    PRODUCT_PICKER_TEXTS,
+    type ProductPickerTexts,
+} from '../../lib/product-picker-types'
 import {
     PURCHASE_PRODUCT_EMPTY_TEXT,
     purchaseProductOptions,
@@ -36,6 +40,8 @@ interface ProductPickerProps {
     testID: string
     // The product types listed; default the bundle item types.
     types?: readonly ProductType[]
+    // What the picker says; default "Product or service" (PRODUCT_PICKER_TEXTS).
+    texts?: ProductPickerTexts
     // A table cell's focus ref and row focus notes.
     triggerRef?: (node: PressableInstance | null) => void
     onFocus?: () => void
@@ -143,8 +149,8 @@ function productOptionsOf(
 
 // The trigger's text: the placeholder with no value; `…` while the chosen row loads;
 // "Unknown product" when its read failed or it no longer exists (the id is kept).
-function chosenNameOf(value: string, chosen: ChosenQuery): string {
-    if (!value) return 'Choose a product or service'
+function chosenNameOf(value: string, chosen: ChosenQuery, placeholder: string): string {
+    if (!value) return placeholder
     if (chosen.isError) return 'Unknown product'
     if (chosen.data) return chosen.data.name
     return chosen.isLoading ? '…' : 'Unknown product'
@@ -176,6 +182,7 @@ export function ProductPicker({
     label,
     testID,
     types = BUNDLE_ITEM_TYPES,
+    texts = PRODUCT_PICKER_TEXTS,
     triggerRef,
     onFocus,
     onBlur,
@@ -204,7 +211,7 @@ export function ProductPicker({
         value
     )
     const emptyText = purpose === 'purchases' ? PURCHASE_PRODUCT_EMPTY_TEXT : undefined
-    const chosenName = chosenNameOf(value, chosen)
+    const chosenName = chosenNameOf(value, chosen, texts.placeholder)
     const triggerSuffix = triggerSuffixOf(purpose, chosen.data)
     const accessibilityLabel = `${label}: ${value ? chosenName : 'none'}`
     const isLoading = picker.isOpen && !query.isError && query.isLoading
@@ -225,14 +232,14 @@ export function ProductPicker({
         <WithPartNo partNo={partNo} testID={`${testID}-part-no`}>
             <SearchPicker
                 picker={picker}
-                title="Product or service"
+                title={texts.title}
                 triggerLabel={chosenName}
                 isPlaceholder={!value}
                 triggerSuffix={triggerSuffix}
                 triggerAccessibilityLabel={accessibilityLabel}
                 triggerTestId={testID}
                 disabled={disabled}
-                searchPlaceholder="Search products and services"
+                searchPlaceholder={texts.searchPlaceholder}
                 searchTestId={`${testID}-search`}
                 options={options}
                 optionTestIdPrefix={`${testID}-option`}

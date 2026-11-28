@@ -65,6 +65,16 @@ var resourceCases = []resourceCase{
 		label: "rec000000000001",
 	},
 	{
+		// Inventory-adjust spec §3.11: a bin location is a list as the others,
+		// after the item lists in resources.json.
+		name: "bins", collection: "books_bins", singular: "bin location",
+		commands:  "activate add deactivate delete edit list show",
+		listFlags: []string{"all", "inactive", "limit", "page", "search"},
+		input:     `{"name": "Aisle 3, shelf B", "note": "by the door"}`,
+		sent:      `{"name":"Aisle 3, shelf B","note":"by the door"}`,
+		label:     "Aisle 3, shelf B",
+	},
+	{
 		name: "tax-agencies", collection: "books_tax_agencies", singular: "tax agency",
 		commands:  "activate add deactivate delete edit list show",
 		listFlags: []string{"all", "inactive", "limit", "page", "search"},

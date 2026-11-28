@@ -57,7 +57,10 @@ func TestLoadDocumentsRefusesAMistake(t *testing.T) {
 		{"an unknown lifecycle", `"lifecycle":"posting"`, `"lifecycle":"memo"`, `unknown lifecycle "memo"`},
 		{"a status a caller can set", `"name":"status","type":"string","readOnly":true`, `"name":"status","type":"string"`, "read-only status"},
 		{"a revision a caller sets", `{"name":"revision","type":"integer","readOnly":true,"help":"the revision"},`, `{"name":"revision","type":"integer","help":"the revision"},`, "revision is a read-only integer"},
-		{"replaces of another type", `"ref":"notes"`, `"ref":"accounts"`, "replaces is read-only, the id of a document of its own type"},
+		// `replaces` is writable only with createOnly: `add` of an inventory
+		// adjustment takes it (inventory-adjust spec §3.11;
+		// TestLoadDocumentsTakesAReplacesThatAddSets).
+		{"replaces of another type", `"ref":"notes"`, `"ref":"accounts"`, "replaces is the id of a document of its own type"},
 		{"keep on a type that is not corrected", `"name":"replaces","type":"id","ref":"notes","readOnly":true,"help":"the note this one corrects"}]`, `"name":"prior","type":"id","ref":"notes","readOnly":true,"help":"the note this one corrects"}],"keep":["prior"]`, `a document that is not corrected copies nothing`},
 		{"a fixed field a caller can set", `"fixed":{"kind":"plain"}`, `"fixed":{"title":"x"}`, `fixed names "title"`},
 		{"a fixed value outside the select", `"fixed":{"kind":"plain"}`, `"fixed":{"kind":"odd"}`, `"odd" is not a value`},
@@ -67,6 +70,9 @@ func TestLoadDocumentsRefusesAMistake(t *testing.T) {
 		{"a position the caller could send", `"omit":["note","position"]`, `"omit":["note"]`, `omit must name "position"`},
 		{"a line field with no help", `{"name":"text","type":"string","help":"the text"}`, `{"name":"text","type":"string","help":""}`, "no help text"},
 		{"a line sort on an unknown field", `"sort":"position,id"`, `"sort":"rank"`, `sort names "rank"`},
+		{"a flag a caller could send", `"omit":["note","position"],`, `"omit":["note","position"],"flags":[{"field":"given","above0":["text"]}],`, `flag "given" is not in omit`},
+		{"a flag of no field", `"omit":["note","position"],`, `"omit":["note","position","given"],"flags":[{"field":"given","above0":[]}],`, `flag "given": above0 names no field`},
+		{"a flag of a field that is not a number", `"omit":["note","position"],`, `"omit":["note","position","given"],"flags":[{"field":"given","above0":["text"]}],`, `above0 names "text", which is not a number field`},
 		{"a line table with no fields", `"fields":[{"name":"text","type":"string","help":"the text"}]`, `"fields":[]`, "no fields"},
 	}
 	for _, tc := range cases {
@@ -76,6 +82,41 @@ func TestLoadDocumentsRefusesAMistake(t *testing.T) {
 			}
 			_, err := loadDocuments([]byte(strings.Replace(minimalDocument, tc.old, tc.new, 1)))
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("err = %v, want one that says %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// `replaces` is read-only, unless the named key `createOnly` says that `add`
+// takes it (inventory-adjustments, spec §3.11; cli-conventions §8): the type is
+// still corrected by `edit`. A writable `replaces` without the key, the key
+// with readOnly, and the key on any other field are refused at load.
+func TestLoadDocumentsTakesAReplacesThatAddSets(t *testing.T) {
+	const readOnly = `"name":"replaces","type":"id","ref":"notes","readOnly":true,`
+	if strings.Count(minimalDocument, readOnly) != 1 {
+		t.Fatalf("the minimal document has no read-only replaces: %q", readOnly)
+	}
+	createOnly := strings.Replace(minimalDocument, readOnly, `"name":"replaces","type":"id","ref":"notes","createOnly":true,`, 1)
+	docs, err := loadDocuments([]byte(createOnly))
+	if err != nil {
+		t.Errorf("a createOnly replaces: %v", err)
+	} else if len(docs) != 1 || !docs[0].corrects() {
+		t.Errorf("a type with a createOnly replaces is corrected: %+v", docs)
+	}
+	cases := []struct{ name, definition, want string }{
+		{"a writable replaces without createOnly", strings.Replace(minimalDocument, readOnly, `"name":"replaces","type":"id","ref":"notes",`, 1), "replaces is read-only unless createOnly"},
+		{"a createOnly replaces of another type", strings.Replace(createOnly, `"ref":"notes"`, `"ref":"accounts"`, 1), "replaces is the id of a document of its own type"},
+		{"createOnly with readOnly", strings.Replace(minimalDocument, readOnly, readOnly+`"createOnly":true,`, 1), "createOnly and readOnly"},
+		{"createOnly on a header field", strings.Replace(minimalDocument, `{"name":"title","type":"string",`, `{"name":"title","type":"string","createOnly":true,`, 1), "createOnly is for replaces only"},
+		{"createOnly on a line field", strings.Replace(minimalDocument, `{"name":"text","type":"string",`, `{"name":"text","type":"string","createOnly":true,`, 1), "createOnly is for replaces only"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.definition == minimalDocument || tc.definition == createOnly {
+				t.Fatal("the case changes nothing")
+			}
+			if _, err := loadDocuments([]byte(tc.definition)); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Errorf("err = %v, want one that says %q", err, tc.want)
 			}
 		})

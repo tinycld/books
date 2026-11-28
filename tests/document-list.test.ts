@@ -13,6 +13,7 @@ import {
 import { describe, expect, it } from 'vitest'
 import * as documentList from '../tinycld/books/lib/document-list'
 import {
+    allOf,
     chipClause,
     chipRuns,
     compareListRows,
@@ -32,6 +33,7 @@ import {
     listRange,
     rangeClauses,
     searchClauses,
+    someClauses,
     sortField,
     tableMinWidthFor,
 } from '../tinycld/books/lib/document-list'
@@ -518,6 +520,20 @@ describe('listedClause', () => {
         expect(ids).toContain('slinv0000001044')
         expect(ids).toContain('slinv0001043fix')
         expect(ids).toEqual(idsOf(SALES_LIST_INVOICES.filter(r => r.id !== 'slinv0001043old')))
+    })
+})
+
+describe('allOf and someClauses', () => {
+    it('allOf takes no empty list: tsc refuses one', () => {
+        const allOfNone = () => {
+            // @ts-expect-error allOf takes at least one clause.
+            return allOf([])
+        }
+        expect(allOfNone).toBeTypeOf('function')
+    })
+
+    it('someClauses refuses an empty list, where a query guard and its clauses disagree', () => {
+        expect(() => someClauses([])).toThrow('a filtered query needs at least one clause')
     })
 })
 

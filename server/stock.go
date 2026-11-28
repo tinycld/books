@@ -56,13 +56,19 @@ const (
 // every other one, a return at the cost of the removal ReturnOf names (a stock
 // move's id). AssetAccount is the product's inventory asset account and
 // OffsetAccount the other side of the move's value (cost of goods sold, or an
-// adjustment's account), both as they are when the document posts.
+// adjustment's account), both as they are when the document posts. Bin is the
+// bin location the quantity goes to or comes from when BinNamed is set ("" is
+// No bin); a move that names no bin takes the product's stored default bin as
+// it is when the move is written, and No bin when it has none. A move whose
+// product is saved in the same write (an item's opening stock) names the bin
+// of that save, because the stored row still holds the old one.
 type stockMoveInput struct {
 	Product, Kind, Source, Document, Line, Date string
 	Qty                                         int64
 	Given                                       bool
 	Value                                       int64
-	ReturnOf, AssetAccount, OffsetAccount       string
+	ReturnOf, AssetAccount, OffsetAccount, Bin  string
+	BinNamed                                    bool
 }
 
 // qtyHundredths is a stored quantity (a number with at most 2 decimals) in
@@ -107,6 +113,7 @@ func addStockMoves(tx core.App, moves []stockMoveInput) error {
 	if err != nil {
 		return err
 	}
+	var binMoves binStockChanges
 	for i, m := range moves {
 		product, err := recordOf(products, m.Product)
 		if err != nil {
@@ -114,6 +121,10 @@ func addStockMoves(tx core.App, moves []stockMoveInput) error {
 		}
 		if product.GetString("type") != "inventory" {
 			return refuseNamed(msgStockNotInventory, product.GetString("name"))
+		}
+		bin := m.Bin
+		if !m.BinNamed && bin == "" && m.Qty != 0 {
+			bin = product.GetString("default_bin")
 		}
 		r := core.NewRecord(col)
 		r.Set("product", m.Product)
@@ -132,11 +143,13 @@ func addStockMoves(tx core.App, moves []stockMoveInput) error {
 		r.Set("asset_account", m.AssetAccount)
 		r.Set("offset_account", m.OffsetAccount)
 		r.Set("currency", currency)
+		r.Set("bin", bin)
 		if err := tx.Save(r); err != nil {
 			return fmt.Errorf("books: write a stock move: %w", err)
 		}
+		binMoves.add(m.Product, bin, m.Qty)
 	}
-	return nil
+	return binMoves.write(tx)
 }
 
 // lockCostingMethod sets books_settings.costing_locked the first time a stock
@@ -179,12 +192,78 @@ func removeStockMoves(tx core.App, source, document string) ([]*core.Record, err
 			return nil, err
 		}
 	}
+	var binMoves binStockChanges
 	for _, m := range moves {
 		if err := tx.Delete(m); err != nil {
 			return nil, fmt.Errorf("books: delete a stock move: %w", err)
 		}
+		// The quantity goes back to the bin the move went to, not to the
+		// item's default bin of today.
+		binMoves.add(m.GetString("product"), m.GetString("bin"), -qtyHundredths(m.GetFloat("quantity")))
+	}
+	if err := binMoves.write(tx); err != nil {
+		return nil, err
 	}
 	return moves, nil
+}
+
+// maxDocumentNumber is the length books_stock_moves.document_number holds
+// (pb-migrations/2100000049_create_books_bins.js), as the documents' own
+// number fields do.
+const maxDocumentNumber = 40
+
+// stampStockMoveNumbers writes number on every stock move of the document (a
+// row of the collection source) in one bound UPDATE
+// (books_stock_moves.document_number). A document takes its number in its post
+// after its moves are written (postDocument numbers the entry that holds their
+// cost), so the moves get it here: one statement for the document, not one for
+// each move (purchase_stock_cost_test.go). A number longer than the field holds
+// is cut to maxDocumentNumber characters. A replay keeps the number
+// (recomputeProductStock writes only the value columns).
+func stampStockMoveNumbers(tx core.App, source, document, number string) error {
+	_, err := tx.DB().NewQuery("UPDATE books_stock_moves SET document_number = {:number} WHERE source = {:source} AND document = {:document}").
+		Bind(dbx.Params{"number": storedDocumentNumber(number), "source": source, "document": document}).
+		Execute()
+	if err != nil {
+		return fmt.Errorf("books: write the document number of the stock moves of %s %s: %w", source, document, err)
+	}
+	return nil
+}
+
+// numberPostedMoves stamps the number of the posted document on its stock
+// moves (stampStockMoveNumbers) and on moves, the records of them the post
+// holds (postDocumentStock's answer). markStockPosted saved each of those
+// records whose value is not 0 in this transaction, and PocketBase sends that
+// realtime update after the commit with the record as it is then, so the
+// update carries the number. The bound UPDATE sends no realtime event, so a
+// move of value 0, which markStockPosted did not save, is saved here with its
+// number: a client that holds it gets the number live too.
+func numberPostedMoves(tx core.App, moves []*core.Record, source, document, number string) error {
+	if len(moves) == 0 {
+		return nil
+	}
+	if err := stampStockMoveNumbers(tx, source, document, number); err != nil {
+		return err
+	}
+	for _, m := range moves {
+		m.Set("document_number", storedDocumentNumber(number))
+		if m.GetInt("value") != 0 {
+			continue
+		}
+		if err := tx.SaveNoValidate(m); err != nil {
+			return fmt.Errorf("books: write the document number of a stock move: %w", err)
+		}
+	}
+	return nil
+}
+
+// storedDocumentNumber is number as books_stock_moves.document_number holds
+// it: at most maxDocumentNumber characters.
+func storedDocumentNumber(number string) string {
+	if runes := []rune(number); len(runes) > maxDocumentNumber {
+		return string(runes[:maxDocumentNumber])
+	}
+	return number
 }
 
 // stockMoveProducts are the products of moves, each once, in order.
@@ -284,16 +363,26 @@ func recomputeProductStock(tx core.App, method, currency, productID string) erro
 		return err
 	}
 	qty := qtyFromHundredths(result.Qty)
-	if product.GetFloat("quantity_on_hand") == qty && int64(product.GetInt("stock_value")) == result.Value {
+	low := isLowStock(product.GetFloat("reorder_point"), qty)
+	if product.GetFloat("quantity_on_hand") == qty && int64(product.GetInt("stock_value")) == result.Value &&
+		product.GetBool("low_stock") == low {
 		return nil
 	}
 	defer setTxMark(tx, markStockWrite, product.Id)()
 	product.Set("quantity_on_hand", qty)
 	product.Set("stock_value", result.Value)
+	product.Set("low_stock", low)
 	if err := tx.Save(product); err != nil {
 		return fmt.Errorf("books: write the stock of %s: %w", product.GetString("name"), err)
 	}
 	return nil
+}
+
+// isLowStock is the low-stock answer of an item (inventory-adjust spec §3.10):
+// its reorder point is above 0 and its quantity on hand is at or below it. The
+// quantity on purchase orders does not count.
+func isLowStock(reorderPoint, onHand float64) bool {
+	return reorderPoint > 0 && qtyHundredths(onHand) <= qtyHundredths(reorderPoint)
 }
 
 // stockRefusal is the refusal of a move the engine cannot price. The

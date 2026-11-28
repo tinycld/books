@@ -182,6 +182,7 @@
                 { "name": "asset_account", "type": "id", "ref": "accounts", "help": "inventory item only: an active Other current asset account that holds the stock value; empty takes the chart's Inventory asset account; it cannot change after the item has stock transactions" },
                 { "name": "preferred_vendor", "type": "id", "ref": "vendors", "help": "inventory item only: the vendor the item is usually bought from; empty for none" },
                 { "name": "reorder_point", "type": "number", "help": "inventory item only: the quantity on hand at which to buy more, from 0 to 1000000" },
+                { "name": "default_bin", "type": "id", "ref": "bins", "help": "inventory item only: an active bin location; a transaction that names no bin moves the item's stock in it; empty for No bin; a change moves no stock" },
                 { "name": "opening_quantity", "type": "number", "help": "inventory item only: the quantity on hand at opening_date, at most 2 decimals; Books posts it as an opening inventory adjustment" },
                 { "name": "opening_value", "type": "integer", "help": "inventory item only: the value of the opening quantity in cents; needs an opening_quantity" },
                 { "name": "opening_date", "type": "string", "help": "inventory item only: the day of the opening stock, YYYY-MM-DD; needed with an opening_quantity, not in a closed period" },
@@ -190,6 +191,7 @@
                 { "name": "quantity_on_hand", "type": "number", "readOnly": true, "help": "inventory item only: the quantity in stock, kept by the server from the posted stock transactions" },
                 { "name": "quantity_on_po", "type": "number", "readOnly": true, "help": "the sum of the open quantities of the product's lines on open purchase orders, kept by the server" },
                 { "name": "stock_value", "type": "integer", "readOnly": true, "help": "inventory item only: the value of the stock in cents, kept by the server from the posted stock transactions" },
+                { "name": "low_stock", "type": "bool", "readOnly": true, "help": "inventory item only: true when reorder_point is above 0 and quantity_on_hand is at or below it, kept by the server" },
                 { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books, set by the server" }
             ]
         },
@@ -213,6 +215,24 @@
                 { "name": "product", "type": "id", "ref": "products", "required": true, "help": "an active product that is not a bundle" },
                 { "name": "quantity", "type": "number", "help": "how many of the product one bundle holds, from 0.01 to 1000000" },
                 { "name": "position", "type": "integer", "help": "the item's place in the bundle, from 0" }
+            ]
+        },
+        {
+            "name": "bins",
+            "singular": "bin location",
+            "summary": "Bin locations: the places where the stock of the Inventory items is kept",
+            "collection": "books_bins",
+            "sort": "sort_key,id",
+            "label": "name",
+            "columns": ["name", "note", "inactive"],
+            "search": ["name"],
+            "filters": [],
+            "omit": ["sort_key"],
+            "deleteHelp": "The server refuses to delete a bin location that holds stock or has history (a stock move, an adjustment line, a move between bins, an item's default bin). Make it inactive with `deactivate`.",
+            "fields": [
+                { "name": "name", "type": "string", "required": true, "help": "the name of the bin location, at most 100 characters, unique without regard to case" },
+                { "name": "note", "type": "string", "help": "a note, at most 500 characters" },
+                { "name": "inactive", "type": "bool", "help": "an inactive bin location is hidden from pickers and keeps its stock and history" }
             ]
         },
         {

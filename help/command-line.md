@@ -26,6 +26,8 @@ Each list has its own group of commands:
 - `tinycld books vendors`: vendors
 - `tinycld books products`: products, services, [Inventory items](help://books:inventory) and bundles. Books keeps the quantity on hand and the stock value of an Inventory item; you cannot set them
 - `tinycld books bundle-items`: the products inside a bundle
+- `tinycld books bins`: the bin locations where you keep the stock of Inventory items
+- `tinycld books bin-transfers`: the moves of stock between bin locations; a move has no `edit` and no `delete`
 - `tinycld books tax-agencies`: the agencies you pay [sales tax](help://books:sales-tax) to
 - `tinycld books tax-rates`: sales tax rates and groups
 - `tinycld books statements`: [statements](help://books:statements) for customers; a statement has no `edit`
@@ -83,7 +85,7 @@ Each type of transaction has its own group of commands:
 - `tinycld books vendor-refunds`: [vendor refunds](help://books:vendor-refunds), money that a vendor pays you back for vendor credits
 - `tinycld books deposits`: [bank deposits](help://books:bank-deposits), money that you move from Undeposited funds into a bank account
 - `tinycld books write-offs`: [write-offs](help://books:write-offs), the open balance of an invoice that the customer will not pay
-- `tinycld books inventory-adjustments`: [inventory adjustments](help://books:inventory), a change of the quantity or the value of the stock. It has no correction: see "To adjust inventory"
+- `tinycld books inventory-adjustments`: [inventory adjustments](help://books:inventory), a change of the quantity or the value of the stock, in a bin location or in No bin: see "To adjust inventory"
 
 ```
 tinycld books journal-entries list --status draft
@@ -436,32 +438,51 @@ tinycld books inventory moves --product <product id>
 tinycld books inventory layers --product <product id>
 ```
 
-`products show` prints the stock of an item now: `quantity_on_hand` and `stock_value`, in cents. `moves` lists each change of the stock, the newest first: `kind` says what changed it (`opening`, `receipt`, `sale`, `customer_return`, `vendor_return` or `adjustment`), `quantity` and `value` are the change, and `quantity_after` and `value_after` are the stock after it. For a move out of stock, `value` is the cost that the costing method gives. `layers` lists the stock on hand with its cost. With the costing method FIFO, a layer is what is left of one move into stock: the layers of an item are in the order of the date of that move, and Books takes stock out from the first one. With the costing method average cost, an item has one layer: all its stock, at the average cost.
+`products show` prints the stock of an item now: `quantity_on_hand` and `stock_value`, in cents. `low_stock` is `true` while the item has a `reorder_point` above 0 and its quantity on hand is at or below it; Books keeps it, and you cannot set it. `default_bin` is the item's default bin location. `moves` lists each change of the stock, the newest first: `kind` says what changed it (`opening`, `receipt`, `sale`, `customer_return`, `vendor_return` or `adjustment`), `quantity` and `value` are the change, and `quantity_after` and `value_after` are the stock after it. `bin` is the bin location the quantity moved in (empty for No bin), and `document_number` is the number of the transaction that made the move. For a move out of stock, `value` is the cost that the costing method gives. `layers` lists the stock on hand with its cost. With the costing method FIFO, a layer is what is left of one move into stock: the layers of an item are in the order of the date of that move, and Books takes stock out from the first one. With the costing method average cost, an item has one layer: all its stock, at the average cost.
 
 Books writes the moves and the layers when a transaction is posted. No command changes them.
 
 ## To adjust inventory
 
-`tinycld books inventory-adjustments` changes the quantity or the value of the stock of Inventory items: a stock count, damage, or a correction of the cost. It has the commands of a transaction: `list`, `show`, `add`, `edit`, `post`, `void`, `delete` and `entry`.
+`tinycld books inventory-adjustments` changes the quantity or the value of the stock of Inventory items: a stock count, damage, or a correction of the cost. In the app, see [Inventory adjustments](help://books:inventory-adjustments). It has the commands of a transaction: `list`, `show`, `add`, `edit`, `post`, `void`, `delete` and `entry`.
 
 ```
 echo '{"date": "2026-09-30", "memo": "Stock count", "lines": [
-  {"product": "<product id>", "quantity": 10, "value": 5000},
+  {"product": "<product id>", "bin": "<bin id>", "quantity": 10, "value": 5000},
   {"product": "<product id>", "quantity": -2},
   {"product": "<product id>", "value": -300}
 ]}' | tinycld books inventory-adjustments add --input - --post
+tinycld books inventory-adjustments edit <id> --input changes.json
 tinycld books inventory-adjustments void <id>
 ```
 
-Each line names an Inventory item and a change. A `quantity` above 0 puts stock in, and `value` is the cost of that quantity, in cents. A `quantity` below 0 takes stock out: do not give a `value`, because Books takes the cost from the costing method. A line with a `value` and no `quantity` changes the value of the stock only, up or down. An adjustment has up to 500 lines.
+Each line names an Inventory item and a change. A `quantity` above 0 puts stock in, and `value` is the cost of that quantity, in cents. A `quantity` below 0 takes stock out: do not give a `value`, because Books takes the cost from the costing method. A line with a `value` and no `quantity` changes the value of the stock only, up or down. `bin` is the bin location the quantity changes in; leave it out for No bin. A line with no `quantity` has no `bin`. An adjustment has up to 500 lines.
 
-`account` is the account for the other side of the change of value. When you do not give one, Books uses Inventory shrinkage. `entry` prints the journal entry; an adjustment that changes no value has none.
+`account` is the account for the other side of the change of value. When you do not give one, Books uses Inventory shrinkage. `entry` prints the journal entry; an adjustment that changes no value has none. After the post, `value_change` is the change of the value of the stock, in cents: Books writes it.
 
-Books does not change a posted adjustment: `edit` changes a draft only. To correct a posted adjustment, void it, then add a new one. `--kind opening` and `--kind recost` list the adjustments that Books made: for the opening stock of an item, and when an earlier transaction changed a cost. The commands list and show those, and refuse to change them.
+Books never changes a posted adjustment. `edit` of a draft changes it in place; `edit` of a posted manual adjustment is a correction: Books voids it and posts a new one with your changes, in one step, and the command prints the new one. Its `replaces` is the id of the one it corrects, and the old one's `replaced_by` is the id of the new one. When your changes do not name `lines`, the correction copies the lines of the posted one with their bin locations. Books refuses it when the bin location of a line is now inactive: give the `lines` in the JSON again, with another `bin`. You can also give `replaces` to `add`, and only to `add` (`edit` refuses it): the new adjustment corrects that one when it is posted. Give `--post` with it: a draft that names it cannot post once the corrected one is void (by `void`, or by another correction). Books refuses a `replaces` of an adjustment that is not posted, that Books made, or that was corrected before. `--kind opening` and `--kind recost` list the adjustments that Books made: for the opening stock of an item, and when an earlier transaction changed a cost. The commands list and show those, and refuse to change them.
+
+## To keep stock in bin locations
+
+A bin location is a place where you keep the stock of an [Inventory item](help://books:inventory), for example Aisle 3, shelf B. Stock in no bin is in No bin. In the app, see [Bin locations](help://books:bin-locations). `tinycld books bins` has the commands of the other lists: `list`, `show`, `add`, `edit`, `deactivate`, `activate` and `delete`.
+
+```
+echo '{"name": "Aisle 3, shelf B", "note": "by the door"}' | tinycld books bins add --input -
+echo '{"product": "<product id>", "from_bin": "<bin id>", "to_bin": "", "quantity": 4, "memo": "to the counter"}' | tinycld books bin-transfers add --input -
+tinycld books inventory bin-stock --product <product id>
+```
+
+A bin name is unique without regard to case. Books refuses to delete a bin that holds stock or has history: make it inactive. An inactive bin keeps its stock.
+
+To give an item a default bin, set `default_bin` with `tinycld books products edit`. A transaction that names no bin (an invoice, a bill, the opening stock) moves the item's stock in its default bin, or in No bin when it has none. A change of `default_bin` moves no stock. An inventory adjustment line names its own `bin`.
+
+`bin-transfers add` moves a quantity of an item from `from_bin` to `to_bin`; an empty bin is No bin. The move is dated now and changes no cost and no journal entry. Books refuses a move above what `from_bin` holds, two bins that are the same, and an inactive `to_bin`. A move is never changed or deleted: to correct one, move the stock back. `bin-transfers list` lists the moves, the newest first, and `show` prints one, with `created` and `created_by`.
+
+`inventory bin-stock` lists the quantity of each item in each bin: `product`, `bin` and `quantity`. `--product` and `--bin` keep the rows of one item or one bin; `--bin ""` keeps the stock in No bin. The rows of an item add up to its `quantity_on_hand`. A bin has a quantity and no value: the cost is the item's.
 
 ## To retry safely
 
-When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload`, `import`, `categorize`, `split` and `match`. It is also true for `reconcile start`, `clear` and `unclear`.
+When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload`, `import`, `categorize`, `split` and `match`. It is also true for `reconcile start`, `clear` and `unclear`, and for `bin-transfers add`.
 
 When no answer comes back at all, the command exits 7. The transaction may be stored or not, and the message names its id. To find out, run `show` with that id:
 

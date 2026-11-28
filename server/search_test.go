@@ -1055,6 +1055,67 @@ func TestSearch_FindsDeposits(t *testing.T) {
 	}
 }
 
+func inventoryAdjustmentRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "inventory_adjustment:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Inventory-adjust spec §3.5: search finds a posted inventory adjustment by its
+// number and by a word of its memo. A row opens the adjustment (id
+// inventory_adjustment:<id>, kind inventory_adjustment) and is titled
+// "Inventory adjustment <number>", with no party. A reader with no Books access
+// finds none.
+func TestSearch_FindsInventoryAdjustments(t *testing.T) {
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSearchIndex(&pocketbase.PocketBase{App: app})
+	registerInventoryAdjustmentGuards(app)
+	se := stockEnvOn(t, ledgerEnvOn(t, app))
+
+	draft := se.draftAdjustment(t, "2026-07-01", se.stockIn(10, 1000))
+	if err := setFieldsOf(app, inventoryAdjustmentsCollection, draft.Id, map[string]any{
+		"memo": "cycle count, four rolls zb48213 damaged",
+	}); err != nil {
+		t.Fatalf("write the memo: %v", err)
+	}
+	if err := se.postAdjustment(draft.Id); err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	posted := reload(t, app, inventoryAdjustmentsCollection, draft.Id)
+	number := posted.GetString("number")
+	if number != "IA-1" {
+		t.Fatalf("posted adjustment number %q, want IA-1", number)
+	}
+	id := "inventory_adjustment:" + posted.Id
+	want := "Inventory adjustment IA-1"
+
+	for _, terms := range [][]string{{number}, {"zb48213"}} {
+		res, err := searchBooks(app, se.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := inventoryAdjustmentRows(res.Rows)
+		r, ok := rows[id]
+		if !ok || len(rows) != 1 {
+			t.Errorf("%q found adjustment rows %v, want only %s", terms, rowIDs(res.Rows), id)
+			continue
+		}
+		if r.Title != want || r.Fields["kind"] != "inventory_adjustment" {
+			t.Errorf("%q row title %q kind %v, want %q, inventory_adjustment", terms, r.Title, r.Fields["kind"], want)
+		}
+	}
+
+	res, err := searchBooks(app, se.users.none.Id, search.Query{Include: []string{"zb48213"}, Limit: 20})
+	if err != nil || len(inventoryAdjustmentRows(res.Rows)) != 0 || res.Total != 0 {
+		t.Errorf("a reader with no Books access found %v (total %d), err %v", rowIDs(res.Rows), res.Total, err)
+	}
+}
+
 func refundReceiptRows(rows []search.Row) map[string]search.Row {
 	out := map[string]search.Row{}
 	for _, r := range rows {
