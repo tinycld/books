@@ -13,12 +13,12 @@
 // stand on inventory-adjust-fixture (its items, bins, bin stock and stock moves) plus what
 // this unit adds. No migration: every row type is the generated type of its collection.
 //
-// Three parts need core changes that do not exist yet (checkpoint 0, spec §4 Core). Until
-// then the fixture gives what the engine will send:
-//   1. `columns[].tone`: STOCK_STATUS_TONES names the cells of a low row; the result
-//      carries no tone.
+// Three parts stand on core changes (checkpoint 0, spec §4 Core). The fixture gives what
+// the engine sends:
+//   1. `columns[].tone`: a low row carries `status@tone` and `on_hand@tone` (the names of
+//      STOCK_STATUS_TONES) with the tone "warning".
 //   2. `columns[].showWhen` / `writeIn`: the Count sheet result leaves the five columns
-//      out and has `counted` with a null cell on each row.
+//      out and has the write-in column `counted` with a null cell on each row.
 //   3. `natural()`: compareNatural below is the order of the Order "Bin".
 
 import type { ParamDef, ReportSpec } from '@tinycld/core/reports/lib/spec'
@@ -962,12 +962,19 @@ export const COUNT_SHEET_COLUMNS: ResultColumn[] = [
     STOCK_NAME,
     STOCK_BIN,
     STOCK_IN_BIN,
-    { id: 'counted', label: 'Counted', type: 'number' },
+    { id: 'counted', label: 'Counted', type: 'number', sortable: false, writeIn: true },
 ]
 
 // The cells of a low row that core change 1 draws in the warning tone (`columns[].tone`,
-// `when: product.low_stock`).
+// `when: product.low_stock`): the run sends `<id>@tone` = "warning" on each.
 export const STOCK_STATUS_TONES = { columns: ['status', 'on_hand'], tone: 'warning' } as const
+
+// A low row's tone cells; none in the Count sheet view, which leaves both columns out.
+function stockToneCells(item: ReportItemRecord, view: StockView): Record<string, CellValue> {
+    if (view === 'count' || !item.low_stock) return {}
+    const cells = STOCK_STATUS_TONES.columns.map(id => [`${id}@tone`, STOCK_STATUS_TONES.tone])
+    return Object.fromEntries(cells)
+}
 
 export interface StockStatusInput {
     view?: StockView
@@ -1019,6 +1026,7 @@ function stockCells({ stock, item }: StockLine, view: StockView): Record<string,
         reorder_point: blankZero(item.reorder_point),
         status: item.low_stock ? LOW_STOCK_WORDS : null,
         vendor: VENDOR_NAMES[item.preferred_vendor] ?? null,
+        ...stockToneCells(item, view),
     }
 }
 
