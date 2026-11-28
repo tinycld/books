@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type { ParamDef, ReportSpec } from '@tinycld/core/reports/lib/spec'
 import * as zodSchemas from '@tinycld/core/types/pbZodSchema'
 import { z } from '@tinycld/core/ui/form'
 import { describe, expect, it } from 'vitest'
@@ -7,17 +10,26 @@ import {
     ADJUSTMENTS,
     adjustmentOf,
     BIN_IDS,
+    BIN_STOCK,
+    BINS,
     INVENTORY_ITEM_IDS,
     INVENTORY_ITEMS,
     INVENTORY_PRINTER,
     INVENTORY_TEXTS,
+    inventoryItem,
     NO_BIN,
+    NO_BIN_LABEL,
     SEED_ADJUSTMENT_IDS,
     SEED_BIN_STOCK,
     SEED_DRAFT_MEMO,
     SEED_POSTED_MEMO,
     SEED_STOCK,
+    STOCK_BY_BIN_DESCRIPTION,
+    STOCK_BY_BIN_DISPLAY,
+    STOCK_BY_BIN_PARAMS,
+    STOCK_BY_BIN_TITLE,
     STOCK_MOVES,
+    stockByBinResult,
 } from '~/tinycld/books/lib/inventory-adjust-fixture'
 import { recordCodeSchema } from '~/tinycld/books/lib/record-code'
 import { SEED_ACCOUNTS } from '~/tinycld/books/lib/seed-accounts'
@@ -287,5 +299,115 @@ describe('inventory-adjust seed rows against the server rules', () => {
             'books_products',
         ])
         expect(writes.flatMap(faultsOf)).toEqual([])
+    })
+})
+
+// The Go shipped report (server/report_bins.go) and this fixture hold the same title,
+// description, empty text, params and display: both are compared with
+// server/testdata/stock_by_bin_spec.json (TestStockByBinMatchesSharedSpecFile reads it too).
+type StockByBinSpecFile = {
+    title: string
+    description: string
+    emptyText: string
+    params: ParamDef[]
+    display: NonNullable<ReportSpec['display']>
+}
+
+const stockByBinSpecFile: StockByBinSpecFile = JSON.parse(
+    readFileSync(join(__dirname, '..', 'server', 'testdata', 'stock_by_bin_spec.json'), 'utf8')
+)
+
+describe('Stock by Bin Location fixture against the shared spec file', () => {
+    it('has the title, the description and the empty text the report ships with', () => {
+        expect(STOCK_BY_BIN_TITLE).toBe(stockByBinSpecFile.title)
+        expect(STOCK_BY_BIN_DESCRIPTION).toBe(stockByBinSpecFile.description)
+        expect(INVENTORY_TEXTS.reportEmpty).toBe(stockByBinSpecFile.emptyText)
+    })
+
+    it('has the params and the display the report ships with', () => {
+        expect(STOCK_BY_BIN_PARAMS).toEqual(stockByBinSpecFile.params)
+        expect(STOCK_BY_BIN_DISPLAY).toEqual(stockByBinSpecFile.display)
+    })
+
+    // Spec §3.9 (cp9 fix r1 decision): below 420 px line 1 is the label alone, spanning
+    // every track; line 2 is Items, Quantity and Reorder point, one track each.
+    it('puts the label alone on line 1 of the phone layout, and the three figures on line 2', () => {
+        const layouts = STOCK_BY_BIN_DISPLAY.layouts ?? []
+        expect(layouts).toHaveLength(1)
+        const [layout] = layouts
+        expect(layout.width).toBe('mobile')
+        expect(layout.tracks).toBe(3)
+        // An absent or zero span is one track (core table-lines.ts `extent`).
+        const placed = (cells: typeof layout.cells) =>
+            cells.map(cell => [cell.col, Math.max(cell.span ?? 0, 1)])
+        const line1 = layout.cells.filter(cell => cell.line === 1)
+        const line2 = layout.cells.filter(cell => cell.line === 2)
+        expect(placed(line1)).toEqual([['name', layout.tracks]])
+        expect(placed(line2)).toEqual([
+            ['items', 1],
+            ['quantity', 1],
+            ['reorder_point', 1],
+        ])
+        expect(line1.length + line2.length).toBe(layout.cells.length)
+    })
+})
+
+// Spec §3.9: the label, Quantity and Reorder point, a bin row that counts its items, one
+// group for each bin with stock ("No bin" last, " (inactive)" on an inactive bin), detail
+// rows "<code> · <name>" that open the item, no row for a quantity of 0, no Total row.
+describe('Stock by Bin Location fixture rows against the spec columns', () => {
+    const result = stockByBinResult()
+    const groups = result.rows.filter(row => row.kind === 'group')
+
+    it('has the label, Items, Quantity and Reorder point columns, and the layout reads only them', () => {
+        expect(result.columns.map(column => [column.id, column.label])).toEqual([
+            ['name', 'Bin'],
+            ['items', 'Items'],
+            ['quantity', 'Quantity'],
+            ['reorder_point', 'Reorder point'],
+        ])
+        const ids = new Set(result.columns.map(column => column.id))
+        for (const layout of STOCK_BY_BIN_DISPLAY.layouts ?? []) {
+            for (const cell of layout.cells) expect(ids.has(cell.col), cell.col).toBe(true)
+        }
+    })
+
+    it('has bin and item rows only: no Total row', () => {
+        for (const row of result.rows) expect(['group', 'detail']).toContain(row.kind)
+    })
+
+    it('labels each bin with stock, " (inactive)" on an inactive bin and No bin last', () => {
+        const withStock = new Set(BIN_STOCK.filter(row => row.quantity !== 0).map(row => row.bin))
+        expect(groups).toHaveLength(withStock.size)
+        expect(groups.at(-1)?.label).toBe(NO_BIN_LABEL)
+        for (const bin of BINS) {
+            if (!withStock.has(bin.id)) continue
+            const label = bin.inactive ? `${bin.name} (inactive)` : bin.name
+            expect(groups.map(group => group.label)).toContain(label)
+        }
+    })
+
+    it('counts the items of a bin row, with blank Quantity and Reorder point', () => {
+        for (const group of groups) {
+            const details = result.rows.filter(row => row.section === group.id)
+            // The shipped report's text, "1 item" or "<n> items" (spec §3.9 "7 items").
+            const count = details.length === 1 ? '1 item' : `${details.length} items`
+            expect(group.cells.items, group.label).toBe(count)
+            expect(group.cells.quantity, group.label).toBeNull()
+            expect(group.cells.reorder_point, group.label).toBeNull()
+            expect(group.expanded, group.label).toBe(true)
+        }
+    })
+
+    it('labels an item row "<code> · <name>", opens the item, and has no row of quantity 0', () => {
+        const details = result.rows.filter(row => row.kind === 'detail')
+        expect(details.length).toBeGreaterThan(0)
+        for (const row of details) {
+            const id = (row.open ?? '').replace('books/products/', '')
+            const item = inventoryItem(id)
+            expect(row.label).toBe(`${item.code} · ${item.name}`)
+            expect(row.cells.quantity).not.toBe(0)
+            expect(row.cells.reorder_point).toBe(item.reorder_point > 0 ? item.reorder_point : null)
+        }
     })
 })

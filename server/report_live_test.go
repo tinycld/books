@@ -61,6 +61,10 @@ var shippedNotLive = map[string]bool{
 	// which change with the order lines, the orders, and the vendors, products
 	// and accounts that label them; it reads no journal line, so it stays live.
 	"books.open_purchase_orders": false,
+	// Inventory-adjust spec §3.9: its rows are the bin stock rows, which
+	// change with each stock move, and the bins and products that label
+	// them; it reads no journal line, so it stays live.
+	"books.stock_by_bin": false,
 }
 
 // requireManual fails unless res is a manual run: marked, and with no topic.
@@ -246,6 +250,7 @@ func TestShippedLiveDeclarations(t *testing.T) {
 		salesByCustomerShipped(), salesByProductShipped(), auditLogShipped(),
 		apAgingShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
 		vendorBalanceShipped(), expensesByVendorShipped(), form1099Shipped(),
+		stockByBinReport(),
 	}
 	var live []string
 	for _, s := range all {

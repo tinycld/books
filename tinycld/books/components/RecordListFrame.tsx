@@ -48,6 +48,24 @@ export type RecordListFrameProps<Row> = {
     // The caller's toolbar shows in the empty state too: a filter of it hides records that
     // exist (the inventory adjustments' Made by Books chip, while Books made one).
     keepsToolbarWhenEmpty?: boolean
+    // Drawn in place of the no-match and all-inactive states while a filter of the caller's
+    // own hides every row (the products' Low stock chip: "No items are low on stock.").
+    // Undefined keeps the shared states.
+    filteredEmpty?: ReactNode
+}
+
+function EmptyBody({
+    kind,
+    filteredEmpty,
+    children,
+}: {
+    kind: ReturnType<typeof emptyKindFor>
+    filteredEmpty: ReactNode | undefined
+    children: ReactNode
+}) {
+    const isFiltered = kind === 'no-match' || kind === 'all-inactive'
+    if (isFiltered && filteredEmpty !== undefined) return <>{filteredEmpty}</>
+    return <>{children}</>
 }
 
 function Toolbar<Row>({
@@ -251,15 +269,17 @@ export function RecordListFrame<Row>(props: RecordListFrameProps<Row>) {
                 onDismiss={onDismissBanner}
             />
             <LoadingBody isVisible={isLoading} testID={`${listPrefix}-loading`} />
-            <ListEmptyState
-                kind={emptyKind}
-                testIdPrefix={listPrefix}
-                copy={copy}
-                canWrite={canWrite}
-                onNew={props.onNew}
-                onClearSearch={list.clearSearch}
-                onShowInactive={showInactive}
-            />
+            <EmptyBody kind={emptyKind} filteredEmpty={props.filteredEmpty}>
+                <ListEmptyState
+                    kind={emptyKind}
+                    testIdPrefix={listPrefix}
+                    copy={copy}
+                    canWrite={canWrite}
+                    onNew={props.onNew}
+                    onClearSearch={list.clearSearch}
+                    onShowInactive={showInactive}
+                />
+            </EmptyBody>
             {table}
             {cards}
             {props.dialog}

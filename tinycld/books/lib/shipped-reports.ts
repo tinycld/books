@@ -19,6 +19,12 @@ export const FORM_1099_SHIPPED_KEY = 'books.form_1099'
 // server/report_purchase_orders.go registers the Open Purchase Orders, which the
 // Purchase orders tab's toolbar and the Vendors list's Reports menu link.
 export const OPEN_PURCHASE_ORDERS_SHIPPED_KEY = 'books.open_purchase_orders'
+// server/report_bins.go registers the Stock by Bin Location, which the Bin locations tab's
+// toolbar and its row menu's Stock in this bin link.
+export const STOCK_BY_BIN_SHIPPED_KEY = 'books.stock_by_bin'
+// Its Bin param (multi-pick of bin ids), as server/report_bins.go and the fixture's
+// STOCK_BY_BIN_PARAMS name it.
+export const STOCK_BY_BIN_BINS_PARAM = 'bins'
 export const SALES_BY_CUSTOMER_SHIPPED_KEY = 'books.sales_by_customer'
 export const SALES_BY_PRODUCT_SHIPPED_KEY = 'books.sales_by_product'
 // server/report_statements.go: the rows of a customer statement's PDF.
@@ -27,8 +33,21 @@ export const STATEMENT_OPEN_ITEMS_SHIPPED_KEY = 'books.statement_open_items'
 // server/report_reconciliation.go: the finished reconciliation summary's View report.
 export const RECONCILIATION_REPORT_SHIPPED_KEY = 'books.reconciliation_report'
 
+// A report link's params by param id: a string for a single value, a list for a
+// multi-pick param (as the Stock by Bin's Bin).
+export type ReportParams = Record<string, string | readonly string[]>
+
+// A param value as core's report view reads it from the URL: a string as given, a list as
+// a JSON list (core's view-url writes and reads a multi-pick that way).
+function paramQueryValue(value: string | readonly string[]): string {
+    if (typeof value === 'string') return value
+    return JSON.stringify(value)
+}
+
 // A report link's query: each param under the key core's report view reads it from
 // (`paramKey`), so the report opens with those filters set.
-export function reportParamQuery(params: Record<string, string>): Record<string, string> {
-    return Object.fromEntries(Object.entries(params).map(([id, value]) => [paramKey(id), value]))
+export function reportParamQuery(params: ReportParams): Record<string, string> {
+    return Object.fromEntries(
+        Object.entries(params).map(([id, value]) => [paramKey(id), paramQueryValue(value)])
+    )
 }

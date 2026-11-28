@@ -444,7 +444,7 @@ Books writes the moves and the layers when a transaction is posted. No command c
 
 ## To adjust inventory
 
-`tinycld books inventory-adjustments` changes the quantity or the value of the stock of Inventory items: a stock count, damage, or a correction of the cost. It has the commands of a transaction: `list`, `show`, `add`, `edit`, `post`, `void`, `delete` and `entry`.
+`tinycld books inventory-adjustments` changes the quantity or the value of the stock of Inventory items: a stock count, damage, or a correction of the cost. In the app, see [Inventory adjustments](help://books:inventory-adjustments). It has the commands of a transaction: `list`, `show`, `add`, `edit`, `post`, `void`, `delete` and `entry`.
 
 ```
 echo '{"date": "2026-09-30", "memo": "Stock count", "lines": [
@@ -464,7 +464,7 @@ Books never changes a posted adjustment. `edit` of a draft changes it in place; 
 
 ## To keep stock in bin locations
 
-A bin location is a place where you keep the stock of an [Inventory item](help://books:inventory), for example Aisle 3, shelf B. Stock in no bin is in No bin. `tinycld books bins` has the commands of the other lists: `list`, `show`, `add`, `edit`, `deactivate`, `activate` and `delete`.
+A bin location is a place where you keep the stock of an [Inventory item](help://books:inventory), for example Aisle 3, shelf B. Stock in no bin is in No bin. In the app, see [Bin locations](help://books:bin-locations). `tinycld books bins` has the commands of the other lists: `list`, `show`, `add`, `edit`, `deactivate`, `activate` and `delete`.
 
 ```
 echo '{"name": "Aisle 3, shelf B", "note": "by the door"}' | tinycld books bins add --input -

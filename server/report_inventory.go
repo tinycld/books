@@ -43,9 +43,10 @@ func stockMoveSourceOptions() []reports.Option {
 
 // stockMovesSource is books_stock_moves: one row for each quantity or value a
 // posted document moved, with the value the costing method gave it and the
-// item's quantity and value after it. source names the document's type and
-// document its id; a move holds no document number. line, given, given_value,
-// return_of and posted_value are the store's own and are left out.
+// item's quantity and value after it. source names the document's type,
+// document its id and document_number its number; bin is the bin the move
+// took stock from or put it in. line, given, given_value, return_of and
+// posted_value are the store's own and are left out.
 func stockMovesSource() reports.Source {
 	return reports.Source{
 		Key: stockMovesKey, Collection: stockMovesCollection, Label: "Stock moves",
@@ -60,11 +61,15 @@ func stockMovesSource() reports.Source {
 			{Key: "quantity_after", Label: "Quantity on hand", Type: reports.Number, Aggregates: reports.MinMax},
 			{Key: "value_after", Label: "Stock value", Type: reports.Money, Aggregates: reports.MinMax, Currency: "currency"},
 			{Key: "currency", Label: "Currency", Type: reports.Text},
+			// The number of the move's document, as the poster writes it.
+			{Key: "document_number", Label: "Document number", Type: reports.Text},
 		},
 		Links: []reports.Link{
 			{Key: "product", Label: "Product", Target: "books.products", Cardinality: reports.ToOne, Field: "product"},
 			{Key: "asset_account", Label: "Inventory asset account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "asset_account"},
 			{Key: "offset_account", Label: "Offset account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "offset_account"},
+			// The bin the move took stock from or put it in; blank is No bin.
+			{Key: "bin", Label: "Bin", Target: "books.bins", Cardinality: reports.ToOne, Field: "bin"},
 		},
 	}
 }

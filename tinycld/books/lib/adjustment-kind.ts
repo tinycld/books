@@ -11,8 +11,7 @@ export const ADJUSTMENT_SHORTCUT_GROUP = 'Inventory adjustment'
 export const ADJUSTMENT_CHROME: DocumentChrome = {
     testId: 'inventory-adjustment',
     shortcutGroup: ADJUSTMENT_SHORTCUT_GROUP,
-    // books:inventory until the adjustment's own topic is written (checkpoint 9).
-    helpTopic: 'books:inventory',
+    helpTopic: 'books:inventory-adjustments',
     lifecycle: 'posting',
 }
 

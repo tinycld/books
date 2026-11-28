@@ -55,6 +55,8 @@ var booksSourceKeys = []string{
 	"books.accounts",
 	"books.audit_log",
 	"books.basis_lines",
+	"books.bin_stock",
+	"books.bins",
 	"books.cash_basis_balances",
 	"books.customers",
 	"books.journal_entries",
@@ -717,11 +719,18 @@ func expectedCatalog(t *testing.T) []wantSource {
 				money("stock_value"),
 				{key: "reorder_point", typ: reports.Number, aggs: reports.MinMax},
 				{key: "quantity_on_po", typ: reports.Number, aggs: reports.SumAll},
+				// Inventory-adjust spec §4: "Low stock".
+				boolField("low_stock"),
+				// Inventory-adjust spec §3.9: Stock by Bin Location labels its
+				// rows "<code> · <name>" and orders them by Item code.
+				{key: "code", typ: reports.Text, label: "Code"},
 			},
 			links: []wantLink{
 				toOne("income_account", "books.accounts", "income_account"),
 				toOne("asset_account", "books.accounts", "asset_account"),
 				toOne("preferred_vendor", "books.vendors", "preferred_vendor"),
+				// Inventory-adjust spec §4: "Default bin".
+				toOne("default_bin", "books.bins", "default_bin"),
 				toMany("stock_moves", "books.stock_moves", "product"),
 				toMany("stock_layers", "books.stock_layers", "product"),
 				toMany("sales_lines", "books.sales_lines", "product"),
@@ -750,11 +759,37 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "quantity_after", typ: reports.Number, aggs: reports.MinMax},
 				{key: "value_after", typ: reports.Money, aggs: reports.MinMax, currency: "currency"},
 				text("currency"),
+				// Inventory-adjust spec §4: "Document number".
+				{key: "document_number", typ: reports.Text, anyAggs: true},
 			},
 			links: []wantLink{
 				toOne("product", "books.products", "product"),
 				toOne("asset_account", "books.accounts", "asset_account"),
 				toOne("offset_account", "books.accounts", "offset_account"),
+				// Inventory-adjust spec §4: "Bin".
+				toOne("bin", "books.bins", "bin"),
+			},
+		},
+		{
+			// Inventory-adjust spec §4: the bin locations (name, note,
+			// inactive); sort_key is left out.
+			key: "books.bins", collection: "books_bins", label: "Bin locations",
+			fields: []wantField{
+				{key: "name", typ: reports.Text, anyAggs: true},
+				{key: "note", typ: reports.Text, anyAggs: true},
+				boolField("inactive"),
+			},
+		},
+		{
+			// Inventory-adjust spec §4: the quantity of each item in each bin;
+			// a blank bin is No bin.
+			key: "books.bin_stock", collection: "books_bin_stock", label: "Bin stock",
+			fields: []wantField{
+				{key: "quantity", typ: reports.Number, anyAggs: true},
+			},
+			links: []wantLink{
+				toOne("product", "books.products", "product"),
+				toOne("bin", "books.bins", "bin"),
 			},
 		},
 		{
@@ -1762,6 +1797,8 @@ func TestSettingsSource(t *testing.T) {
 // with its detail opening the order by its number key.
 // The detail open paths were recorded again when inventory-adjust added its
 // `inventory_adjustment` route row (same Revision).
+// books.stock_by_bin was recorded when inventory-adjust shipped it, with no
+// Total row (NoTotal), and recorded again in its checkpoint 9 fix round 1.
 var shippedSpecSHA256 = map[string]string{
 	"books.trial_balance":             "ca0934c2a82698e84846cdd346a0bdaf3d99c323e63fcd47f259249219e19467",
 	"books.general_ledger":            "ec5506892fa9ac4430346105641f570161d3b5abb650db8fa464add26af4e7ee",
@@ -1782,6 +1819,7 @@ var shippedSpecSHA256 = map[string]string{
 	"books.statement_balance_forward": "401cda8e834748a07211f7edd153049bfe47895e36ab3769bc141c37af2ad118",
 	"books.statement_open_items":      "3750641961b4253d572d83d623c4db2f2b9571511de3ae1b206b4ee7e2f595e9",
 	"books.open_purchase_orders":      "1d6a39da1021b9e038dba4a50df4e68b66fb495bf918a3f74fb59b50865a8886",
+	"books.stock_by_bin":              "487077f3630d9076d3a16129ec923e77a3bc7113ceb0585ad835594664fd2730",
 }
 
 func TestSourceAdditionsKeepShippedSpecs(t *testing.T) {
@@ -1791,7 +1829,7 @@ func TestSourceAdditionsKeepShippedSpecs(t *testing.T) {
 		salesTaxLiabilityShipped(), customerBalanceShipped(), arAgingShipped(), apAgingShipped(),
 		vendorBalanceShipped(), expensesByVendorShipped(), salesByCustomerShipped(), salesByProductShipped(),
 		auditLogShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
-		openPurchaseOrdersReport(),
+		openPurchaseOrdersReport(), stockByBinReport(),
 	}
 	if len(shipped) != len(shippedSpecSHA256) {
 		t.Errorf("%d shipped reports, %d recorded sums", len(shipped), len(shippedSpecSHA256))

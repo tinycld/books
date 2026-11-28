@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { navigateToPackage } from '@tinycld/core/e2e-helpers'
 import type { ScreenshotPlan } from '@tinycld/package-scripts/help-screenshots'
+import { ADJUSTMENT_IDS, BIN_IDS } from '../tinycld/books/lib/inventory-adjust-fixture'
 import { RECONCILIATION_REPORT_SEED } from '../tinycld/books/lib/reconciliation-report-fixture'
 
 // Only screens that are not obvious get a picture. The navigation overview,
@@ -294,7 +295,56 @@ async function openReconcileUndoForShot(page: Page) {
     await expect(page.getByTestId('reconcile-undo-text').filter({ visible: true })).toBeVisible()
 }
 
+// A tab of Products and services (Inventory adjustments, Bin locations), from the Lists hub.
+async function openInventoryTabForShot(page: Page, tab: string) {
+    await navigateToPackage(page, 'books')
+    await page.getByTestId('books-nav-lists').filter({ visible: true }).click()
+    await page.getByTestId('books-list-card-products').filter({ visible: true }).click()
+    const button = page.getByRole('tab', { name: tab, exact: true }).filter({ visible: true })
+    await button.click()
+    await expect(button).toHaveAttribute('aria-selected', 'true')
+}
+
+// The seeded posted adjustment (a decrease in a bin and an increase at a cost), in its read
+// view with the posted value of each line.
+async function openPostedAdjustmentForShot(page: Page) {
+    await openInventoryTabForShot(page, 'Inventory adjustments')
+    await page
+        .getByTestId(`inventory-adjustments-row-${ADJUSTMENT_IDS.posted}`)
+        .filter({ visible: true })
+        .click()
+    await expect(
+        page.getByTestId('inventory-adjustment-read').filter({ visible: true })
+    ).toBeVisible()
+    await expect(
+        page.getByTestId('inventory-adjustment-badge').filter({ visible: true })
+    ).toHaveText('Posted')
+}
+
+// The seeded active bin locations, with the Stock by bin button of the toolbar.
+async function openBinsForShot(page: Page) {
+    await openInventoryTabForShot(page, 'Bin locations')
+    const list = page.getByTestId('bins-list').filter({ visible: true })
+    await expect(list).not.toHaveAttribute('aria-busy', 'true')
+    await expect(list.getByTestId(`bins-row-${BIN_IDS.aisle3}`)).toBeVisible()
+    await expect(page.getByTestId('bins-stock-report').filter({ visible: true })).toBeVisible()
+}
+
 export default {
+    'inventory-adjustments': [
+        {
+            name: 'inventory-adjustments-1',
+            setup: openPostedAdjustmentForShot,
+            target: '[data-testid="inventory-adjustment-read"]',
+        },
+    ],
+    'bin-locations': [
+        {
+            name: 'bin-locations-1',
+            setup: openBinsForShot,
+            target: '[data-testid="bins"]',
+        },
+    ],
     dashboard: [
         {
             name: 'dashboard-1',

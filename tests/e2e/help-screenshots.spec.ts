@@ -10,6 +10,9 @@ const TOPICS = [
     { title: 'Banking', image: 'banking-1' },
     { title: 'Import bank transactions', image: 'bank-import-1' },
     { title: 'Review bank transactions', image: 'bank-review-1' },
+    // Inventory-adjust checkpoint 9 (tests/help-inventory-adjust.test.ts pins the titles).
+    { title: 'Inventory adjustments', image: 'inventory-adjustments-1' },
+    { title: 'Bin locations', image: 'bin-locations-1' },
 ]
 
 async function openTopic(page: Page, title: string) {

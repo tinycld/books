@@ -1,0 +1,47 @@
+{
+    "title": "Stock by Bin Location",
+    "description": "Quantity on hand of each item, by the bin it is in.",
+    "emptyText": "No stock in a bin location",
+    "params": [
+        {
+            "id": "bins",
+            "type": "choice",
+            "label": "Bin",
+            "multiple": true,
+            "header": "Bin: {label}",
+            "optionsFrom": {
+                "source": "books.bins",
+                "value": [{ "field": "id" }],
+                "label": [{ "field": "name" }]
+            }
+        },
+        {
+            "id": "order",
+            "type": "choice",
+            "label": "Order",
+            "options": [
+                { "value": "name", "label": "Item name" },
+                { "value": "code", "label": "Item code" }
+            ],
+            "default": "name"
+        }
+    ],
+    "display": {
+        "oneLine": { "minWidth": "420px" },
+        "columns": {
+            "name": { "whiteSpace": "normal", "lineClamp": 3 }
+        },
+        "layouts": [
+            {
+                "width": "mobile",
+                "tracks": 3,
+                "cells": [
+                    { "col": "name", "line": 1, "span": 3 },
+                    { "col": "items", "line": 2 },
+                    { "col": "quantity", "line": 2 },
+                    { "col": "reorder_point", "line": 2 }
+                ]
+            }
+        ]
+    }
+}

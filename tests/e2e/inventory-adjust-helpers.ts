@@ -1,5 +1,9 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { chooseParamOption } from '@tinycld/core/e2e-helpers'
+import { STOCK_BY_BIN_TITLE } from '~/tinycld/books/lib/inventory-adjust-fixture'
 import { isPhone } from './account-register-helpers'
+import type { ReportSnapshot } from './books-report-helpers'
+import { runLanded } from './expenses-by-vendor-helpers'
 import { localToday } from './invoice-helpers'
 import { newActionItem, openNewMenu } from './new-menu-helpers'
 import {
@@ -441,4 +445,160 @@ export async function postAdjustment(page: Page): Promise<string> {
     await expect(shown(page, 'inventory-adjustment-read')).toBeVisible()
     await expect(shown(page, 'inventory-adjustment-badge')).toHaveText('Posted')
     return adjustmentNumberOf(page)
+}
+
+// ---- The Stock by Bin Location report (inventory-adjust spec §3.9) ----
+
+// A run of the report whose posted params hold `text` (a bin id), whatever the param's
+// name: the Bin chip and the row menu's Stock in this bin both post the picked bin.
+export function stockRunWith(page: Page, text: string) {
+    return runLanded(page, params => JSON.stringify(params).includes(text))
+}
+
+// The shown report must be Stock by Bin Location: its screen, its table and its title.
+export async function expectStockByBin(page: Page) {
+    await expect(page.getByTestId('report-screen').filter({ visible: true })).toBeVisible()
+    await expect(page.getByTestId('report-table').filter({ visible: true })).toBeVisible()
+    await expect(page.getByTestId('report-document-title').filter({ visible: true })).toHaveText(
+        STOCK_BY_BIN_TITLE
+    )
+}
+
+/**
+ * The bin list must be shown. Presses its toolbar's report button (Stock by bin) and waits
+ * for the report's first run and its screen.
+ */
+export async function openStockByBinFromBins(page: Page) {
+    const button = shown(page, 'bins-stock-report')
+    await expect(button).toContainText('Stock by bin')
+    const landed = runLanded(page, () => true)
+    await button.click()
+    await landed
+    await expectStockByBin(page)
+}
+
+/**
+ * The bin list must be shown. Searches the bin `name`, opens its row menu, presses Stock in
+ * this bin, and waits for the run of the report with that bin picked (`id`).
+ */
+export async function openStockInBin(page: Page, name: string, id: string) {
+    await searchBins(page, name)
+    const landed = stockRunWith(page, id)
+    await chooseBinMenu(page, name, 'Stock in this bin')
+    await landed
+    await expectStockByBin(page)
+}
+
+/**
+ * The report must be shown with no bin picked. Picks only the bin `name` (`id`) through core's
+ * Bin picker: an unset multi-pick has no chip, so it starts from Add filter. Waits for the run
+ * of that pick and for the URL to hold it.
+ */
+export async function pickOnlyBin(page: Page, name: string, id: string) {
+    const landed = stockRunWith(page, id)
+    await chooseParamOption(page, 'bins', { from: 'add-filter', search: name, labels: [name] })
+    await landed
+    await expect.poll(() => new URL(page.url()).search).toContain(id)
+}
+
+type StockRow = ReportSnapshot['rows'][number]
+
+// The bin rows (top level) of a snapshot, in screen order.
+export function binGroupLabels(snapshot: ReportSnapshot): string[] {
+    return snapshot.rows
+        .filter(row => row.kind === 'group' && row.depth === 0)
+        .map(row => row.label)
+}
+
+// The bin row labelled `label` and its item rows, or undefined when it is not mounted.
+export function binGroup(
+    snapshot: ReportSnapshot,
+    label: string
+): { group: StockRow; items: StockRow[] } | undefined {
+    const at = snapshot.rows.findIndex(row => row.kind === 'group' && row.label === label)
+    if (at < 0) return undefined
+    const after = snapshot.rows.slice(at + 1)
+    const end = after.findIndex(row => row.kind !== 'detail')
+    return { group: snapshot.rows[at], items: end < 0 ? after : after.slice(0, end) }
+}
+
+const ITEM_COUNT = /^(\d+) items?$/
+
+// A bin row's count of its items ("2 items"), read from whichever cell shows it; null when
+// no cell does.
+export function binItemCount(group: StockRow): number | null {
+    for (const text of Object.values(group.cells)) {
+        const match = ITEM_COUNT.exec(text.trim())
+        if (match) return Number(match[1])
+    }
+    return null
+}
+
+// A figure cell of a row as a number; null when it is blank.
+export function stockFigure(row: StockRow, column: 'quantity' | 'reorder_point'): number | null {
+    const text = (row.cells[column] ?? '').replace(/,/g, '').trim()
+    return text === '' ? null : Number(text)
+}
+
+// The phone row of `rowId`: whether its Quantity cell starts below its label's box.
+export function quantityBelowLabel(page: Page, rowId: string): Promise<boolean | null> {
+    return page.evaluate(id => {
+        const table = [...document.querySelectorAll('[data-testid="report-table"]')].find(node =>
+            node.checkVisibility()
+        )
+        const find = (testId: string) =>
+            [...(table?.querySelectorAll('[data-testid]') ?? [])].find(
+                node => node.getAttribute('data-testid') === testId
+            )
+        const label = find(`report-row-${id}`)
+        const quantity = find(`report-cell-quantity-${id}`)
+        if (!label || !quantity) return null
+        return quantity.getBoundingClientRect().top >= label.getBoundingClientRect().bottom - 1
+    }, rowId)
+}
+
+// The report's own scroller (the rows' nearest overflow-y: auto ancestor): its scrollWidth
+// less its clientWidth, 0 when nothing scrolls sideways; null with no mounted row.
+export function reportSideScroll(page: Page): Promise<number | null> {
+    return page.evaluate(() => {
+        const table = [...document.querySelectorAll('[data-testid="report-table"]')].find(node =>
+            node.checkVisibility()
+        )
+        const first = table?.querySelector('[data-testid^="report-row-"]')
+        let list = first?.parentElement ?? null
+        while (list && getComputedStyle(list).overflowY !== 'auto') list = list.parentElement
+        if (!list) return null
+        return list.scrollWidth - list.clientWidth
+    })
+}
+
+// ---- Low stock in the products list (inventory-adjust spec §3.10) ----
+
+// The Type cell of a product's table row.
+export function productTypeCell(page: Page, id: string): Locator {
+    return shown(page, `product-cell-type-${id}`)
+}
+
+// The list's Low stock chip.
+export function lowStockChip(page: Page): Locator {
+    return shown(page, 'products-list').getByRole('button', { name: 'Low stock', exact: true })
+}
+
+// The products list must be shown. Presses the Low stock chip into `on` and waits for the
+// list's query to answer.
+export async function setLowStockChip(page: Page, on: boolean) {
+    const chip = lowStockChip(page)
+    await expect(chip).toHaveAttribute('aria-pressed', on ? 'false' : 'true')
+    await chip.click()
+    await expect(chip).toHaveAttribute('aria-pressed', on ? 'true' : 'false')
+    await expect(shown(page, 'products-list')).not.toHaveAttribute('aria-busy', 'true')
+}
+
+// A PATCH of a product that the server answered.
+export function productPatched(page: Page) {
+    return page.waitForResponse(
+        r =>
+            r.request().method() === 'PATCH' &&
+            /\/api\/collections\/books_products\/records\/[^/]+$/.test(new URL(r.url()).pathname)
+    )
 }

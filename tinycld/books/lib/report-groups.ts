@@ -21,6 +21,7 @@ const GROUP_OF_KEY: Record<string, ReportGroup> = {
     'books.expenses_by_vendor': 'expenses',
     'books.form_1099': 'expenses',
     'books.open_purchase_orders': 'expenses',
+    'books.stock_by_bin': 'expenses',
 }
 
 export function reportGroup(shippedKey: string): ReportGroup {

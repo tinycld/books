@@ -1,28 +1,44 @@
 import type { BooksBins, BooksBinTransfers } from '../types'
 import { binLabel } from './adjustment-read'
+import { type ReportParams, STOCK_BY_BIN_BINS_PARAM } from './shipped-reports'
 import { quantityText } from './stock-display'
 
 // The bin list (inventory-adjust spec §3.7): the row menu, the Status cell, the table's
 // columns and the bin dialog's state; and the Recent moves line of the item page's Bins
 // tab (§3.8).
 
-export type BinRowAction = 'edit' | 'make-inactive' | 'make-active' | 'delete'
+export type BinRowAction = 'edit' | 'stock' | 'make-inactive' | 'make-active' | 'delete'
 
 export const BIN_ROW_MENU_LABELS: Record<BinRowAction, string> = {
     edit: 'Edit',
+    stock: 'Stock in this bin',
     'make-inactive': 'Make inactive',
     'make-active': 'Make active',
     delete: 'Delete',
 }
 
-// Every item writes, so a reader has none.
+/**
+ * The row menu (spec §3.7): Edit, Stock in this bin, Make inactive or Make active, Delete.
+ * Stock in this bin only opens the Stock by Bin Location report, which every Books reader
+ * may run, so a reader keeps it and no other item. `hasReport` is false while the report's
+ * link is not known (it loads, its read failed, or the reader has no such report): the
+ * item then is not offered, as the toolbar's report button is not.
+ */
 export function binRowMenuItems(
     bin: Pick<BooksBins, 'inactive'>,
-    canWrite: boolean
+    canWrite: boolean,
+    hasReport = true
 ): BinRowAction[] {
-    if (!canWrite) return []
+    const stock: BinRowAction[] = hasReport ? ['stock'] : []
+    if (!canWrite) return stock
     const toggle: BinRowAction = bin.inactive ? 'make-active' : 'make-inactive'
-    return ['edit', toggle, 'delete']
+    return ['edit', ...stock, toggle, 'delete']
+}
+
+// Stock in this bin's report params: the Stock by Bin Location report's Bin param is a
+// multi-pick, so the bin goes in as a one-item list (reportParamQuery writes it as JSON).
+export function stockInBinParams(binId: string): ReportParams {
+    return { [STOCK_BY_BIN_BINS_PARAM]: [binId] }
 }
 
 // The Status cell: blank for an active bin.

@@ -1019,8 +1019,8 @@ export const STOCK_BY_BIN_PARAMS: ParamDef[] = [
 // One group, Bin, open at the start, with no subtotal row (the bin row holds its count).
 export const STOCK_BY_BIN_GROUPS: { subtotals?: boolean; open: boolean }[] = [{ open: true }]
 
-// One line where a row is 420 px or wider; a narrower row takes two lines: the label and
-// the bin's item count, then Quantity and Reorder point.
+// One line where a row is 420 px or wider; a narrower row takes two lines: the label alone
+// over all three tracks, then the bin's item count, Quantity and Reorder point.
 export const STOCK_BY_BIN_DISPLAY: NonNullable<ReportSpec['display']> = {
     oneLine: { minWidth: '420px' },
     columns: {
@@ -1029,10 +1029,10 @@ export const STOCK_BY_BIN_DISPLAY: NonNullable<ReportSpec['display']> = {
     layouts: [
         {
             width: 'mobile',
-            tracks: 2,
+            tracks: 3,
             cells: [
-                { col: 'name', line: 1 },
-                { col: 'items', line: 1 },
+                { col: 'name', line: 1, span: 3 },
+                { col: 'items', line: 2 },
                 { col: 'quantity', line: 2 },
                 { col: 'reorder_point', line: 2 },
             ],
@@ -1042,8 +1042,8 @@ export const STOCK_BY_BIN_DISPLAY: NonNullable<ReportSpec['display']> = {
 
 export const STOCK_BY_BIN_COLUMNS: ResultColumn[] = [
     { id: 'name', label: 'Bin', type: 'text' },
-    // A bin row's count of its items; blank on an item row.
-    { id: 'items', label: 'Items', type: 'number', aggregate: 'count' },
+    // A bin row's count of its items as text ("1 item", "<n> items"); blank on an item row.
+    { id: 'items', label: 'Items', type: 'text' },
     { id: 'quantity', label: 'Quantity', type: 'number' },
     { id: 'reorder_point', label: 'Reorder point', type: 'number' },
 ]
@@ -1058,6 +1058,11 @@ function reportBins(): string[] {
     })
 }
 
+// The shipped report's Items text (server/report_bins.go stockByBinItems).
+function itemCountText(count: number): string {
+    return count === 1 ? '1 item' : `${count} items`
+}
+
 function binRows(bin: string): ResultRow[] {
     const stock = BIN_STOCK.filter(row => row.bin === bin && row.quantity !== 0)
     const groupId = `g:${JSON.stringify([bin])}`
@@ -1070,7 +1075,7 @@ function binRows(bin: string): ResultRow[] {
         groupKey: [bin],
         expanded: true,
         canExpand: true,
-        cells: { items: stock.length, quantity: null, reorder_point: null },
+        cells: { items: itemCountText(stock.length), quantity: null, reorder_point: null },
     }
     const details: ResultRow[] = stock
         .map(row => ({ row, item: inventoryItem(row.product) }))

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
     BIN_COLUMNS,
+    BIN_ROW_MENU_LABELS,
     BIN_TABLE_MIN_WIDTH,
     binDialogState,
     binRowMenuItems,
+    stockInBinParams,
     transferText,
 } from '../tinycld/books/lib/bin-list'
 import {
@@ -13,6 +15,7 @@ import {
     INVENTORY_USER_NAMES,
     NO_BIN,
 } from '../tinycld/books/lib/inventory-adjust-fixture'
+import { STOCK_BY_BIN_BINS_PARAM } from '../tinycld/books/lib/shipped-reports'
 
 // The bin list's rules (inventory-adjust spec §3.7) and the Recent moves line of the item
 // page's Bins tab (§3.8).
@@ -26,25 +29,49 @@ function binOf(id: string) {
 const ACTIVE = binOf(BIN_IDS.aisle3)
 const INACTIVE = binOf(BIN_IDS.backRoom)
 
+// The menu as the row shows it: each item's label (spec §3.7 "Row menu: Edit, Stock in
+// this bin, Make inactive / Make active, Delete").
+function menuLabels(bin: Pick<typeof ACTIVE, 'inactive'>, canWrite: boolean): string[] {
+    return binRowMenuItems(bin, canWrite).map(item => BIN_ROW_MENU_LABELS[item])
+}
+
 describe('binRowMenuItems', () => {
-    it('gives a writer Edit, Make inactive and Delete on an active bin', () => {
+    it('gives a writer Edit, Stock in this bin, Make inactive and Delete on an active bin', () => {
         expect(ACTIVE.inactive).toBe(false)
-        expect(binRowMenuItems(ACTIVE, true)).toEqual(['edit', 'make-inactive', 'delete'])
+        expect(menuLabels(ACTIVE, true)).toEqual([
+            'Edit',
+            'Stock in this bin',
+            'Make inactive',
+            'Delete',
+        ])
     })
 
-    it('gives a writer Edit, Make active and Delete on an inactive bin', () => {
+    it('gives a writer Edit, Stock in this bin, Make active and Delete on an inactive bin', () => {
         expect(INACTIVE.inactive).toBe(true)
-        expect(binRowMenuItems(INACTIVE, true)).toEqual(['edit', 'make-active', 'delete'])
+        expect(menuLabels(INACTIVE, true)).toEqual([
+            'Edit',
+            'Stock in this bin',
+            'Make active',
+            'Delete',
+        ])
     })
 
     it.each([
         ['an active', ACTIVE],
         ['an inactive', INACTIVE],
-    ])('gives a reader no write on %s bin', (_label, bin) => {
-        const items: readonly string[] = binRowMenuItems(bin, false)
-        for (const write of ['edit', 'make-inactive', 'make-active', 'delete']) {
-            expect(items).not.toContain(write)
-        }
+    ])('gives a reader only Stock in this bin on %s bin', (_label, bin) => {
+        // Stock in this bin only reads (spec §3.7 marks no "(writers)"; §3.9 shares the
+        // report with every Books reader), so a reader keeps it and no write item.
+        expect(menuLabels(bin, false)).toEqual(['Stock in this bin'])
+    })
+})
+
+// Spec §3.7 "Stock in this bin (opens the report of §3.9 with this bin picked)": the
+// report's Bin param is a multi-pick, so the bin goes in as a list of one.
+describe('stockInBinParams', () => {
+    it("picks the bin in the Stock by Bin report's Bin param, as a list", () => {
+        expect(STOCK_BY_BIN_BINS_PARAM).toBe('bins')
+        expect(stockInBinParams(ACTIVE.id)).toEqual({ [STOCK_BY_BIN_BINS_PARAM]: [ACTIVE.id] })
     })
 })
 

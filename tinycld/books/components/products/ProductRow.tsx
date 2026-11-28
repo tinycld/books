@@ -6,6 +6,7 @@ import {
     PRODUCT_ROW_HEIGHT,
     productCostText,
     productPriceText,
+    productStockLine,
 } from '../../lib/product-list'
 import { productTypeLabel } from '../../lib/product-types'
 import { InactiveLabel, PartyMenuSlot, selectedProps } from '../party/PartyRowParts'
@@ -38,6 +39,24 @@ function CodeCell({ isVisible, product }: { isVisible: boolean; product: Product
     )
 }
 
+const STOCK_TONE_CLASS = {
+    muted: 'text-xs text-muted-foreground',
+    warning: 'text-xs text-warning',
+} as const
+
+// An Inventory row's stock under its type (productStockLine): it fits the 56 px row
+// beside the 20 px type line, so the row and the column keep their sizes.
+function StockLine({ product }: { product: ProductRecord }) {
+    const line = productStockLine(product)
+    if (line === null) return null
+    const toneClass = STOCK_TONE_CLASS[line.tone]
+    return (
+        <Text testID={`product-cell-stock-${product.id}`} numberOfLines={1} className={toneClass}>
+            {line.text}
+        </Text>
+    )
+}
+
 // Type, Sales price and Cost.
 function DetailCells({ isVisible, product }: { isVisible: boolean; product: ProductRecord }) {
     if (!isVisible) return null
@@ -52,6 +71,7 @@ function DetailCells({ isVisible, product }: { isVisible: boolean; product: Prod
                 <Text numberOfLines={1} className="text-sm text-foreground">
                     {productTypeLabel(product.type)}
                 </Text>
+                <StockLine product={product} />
             </View>
             <MoneyCell
                 testID={`product-cell-price-${id}`}

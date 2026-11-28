@@ -1,5 +1,5 @@
-import { useIsFocused } from 'expo-router'
-import type { ReactNode } from 'react'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
+import { router, useIsFocused } from 'expo-router'
 import { View } from 'react-native'
 import { useBinActions } from '../../hooks/useBinActions'
 import { type EditedBin, useEditedBin } from '../../hooks/useBinDialog'
@@ -9,6 +9,7 @@ import { useFitsTable } from '../../hooks/useFitsTable'
 import { useListFilters } from '../../hooks/useListFilters'
 import { useRecordList } from '../../hooks/useRecordList'
 import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
+import { shippedReportHref, useShippedReportId } from '../../hooks/useShippedReportHref'
 import {
     BIN_COLUMNS,
     BIN_ROW_MENU_LABELS,
@@ -16,16 +17,19 @@ import {
     type BinDialogTarget,
     type BinRowAction,
     binRowMenuItems,
+    stockInBinParams,
 } from '../../lib/bin-list'
 import { BINS_PATH } from '../../lib/bin-route'
 import { INVENTORY_TEXTS } from '../../lib/inventory-adjust-fixture'
 import type { PartyListCopy } from '../../lib/party-list'
 import { recordMenuTestIds } from '../../lib/record-menu'
+import { type ReportParams, STOCK_BY_BIN_SHIPPED_KEY } from '../../lib/shipped-reports'
 import { useBinDialogStore, useBinFormStore } from '../../stores/bin-dialog-store'
 import { ListCards } from '../ListCards'
 import { ListHeaderCell, ListHeaderRow, ListTable } from '../ListTable'
 import { InventoryTabStrip } from '../products/InventoryTabStrip'
 import { RecordListFrame } from '../RecordListFrame'
+import { ShippedReportButton } from '../reports/ShippedReportButton'
 import { BinCard, binCardHeight } from './BinCard'
 import { BinDeleteDialog } from './BinDeleteDialog'
 import { BinDialog } from './BinDialog'
@@ -49,8 +53,11 @@ const BIN_MENU = {
     triggerPrefix: 'bin-menu',
     triggerLabel: 'Bin location actions',
     labels: BIN_ROW_MENU_LABELS,
-    testIds: recordMenuTestIds('bin'),
+    testIds: { ...recordMenuTestIds('bin'), stock: 'bin-menu-stock' },
 }
+
+// The toolbar's report link opens the report with no bin picked (default all).
+const NO_PARAMS: ReportParams = {}
 
 const binKey = (bin: BinListRow) => bin.id
 const binName = (bin: BinListRow) => bin.name
@@ -81,25 +88,44 @@ function OpenBinDialog({ target, edited }: { target: BinDialogTarget | null; edi
     return <BinDialog key={key} target={target} edited={edited} />
 }
 
-interface BinsListProps {
-    // A control beside New bin location (the report button of checkpoint 9).
-    headerAction?: ReactNode
-}
-
 /**
  * The bin list (inventory-adjust spec §3.7), the third tab of Products and services: the
  * name search and Show inactive in the query (useBinsQuery), ordered by name; the table
  * (Name · Note · Status) where it fits (484 px of its own width) and cards below it; each
- * row with its menu for a writer (Edit, Make inactive or Make active, Delete). New bin
- * location, a writer's row press and Edit open the bin dialog (useBinDialogStore); a
- * reader's row opens nothing. The search and Show inactive stay on the empty state, where
- * every bin may be inactive (keepsToolbarWhenEmpty). Delete confirms
- * in its dialog, which shows the server's refusal. The load error has Retry; a refusal of
- * Make inactive or Make active, and the notice of a bin deleted while its dialog was
- * open, show in the banner.
+ * row with its menu (binRowMenuItems: Edit, Stock in this bin, Make inactive or Make
+ * active, Delete for a writer; Stock in this bin alone for a reader). The toolbar's Stock
+ * by bin button and Stock in this bin open the Stock by Bin Location report (spec §3.9),
+ * the second with the row's bin picked; both wait for the report's id and are not offered
+ * while it is not known (useShippedReportId). New bin location, a writer's row press and
+ * Edit open the bin dialog (useBinDialogStore); a reader's row opens nothing. The search
+ * and Show inactive stay on the empty state, where every bin may be inactive
+ * (keepsToolbarWhenEmpty). Delete confirms in its dialog, which shows the server's refusal.
+ * The load error has Retry; a refusal of Make inactive or Make active, and the notice of a
+ * bin deleted while its dialog was open, show in the banner.
  */
-export function BinsList({ headerAction }: BinsListProps) {
+export function BinsList() {
     const { canWrite } = useBooksAccess()
+    const orgHref = useOrgHref()
+    const reportId = useShippedReportId(STOCK_BY_BIN_SHIPPED_KEY)
+    const hasReport = reportId !== null
+    const reportHref = reportId === null ? null : shippedReportHref(orgHref, reportId, NO_PARAMS)
+    // Undefined, not a button that renders null, so the header draws no empty button group.
+    const reportButton =
+        reportHref === null ? undefined : (
+            <ShippedReportButton
+                href={reportHref}
+                label="Stock by bin"
+                testID="bins-stock-report"
+            />
+        )
+    const openStockInBin = (bin: BinListRow) => {
+        if (reportId === null) return
+        router.push(shippedReportHref(orgHref, reportId, stockInBinParams(bin.id)))
+    }
+    const onExtra = (bin: BinListRow, item: BinRowAction) => {
+        if (item === 'stock') openStockInBin(bin)
+    }
+    const itemsFor = (bin: BinListRow, writes: boolean) => binRowMenuItems(bin, writes, hasReport)
     const openNew = useBinDialogStore(s => s.openNew)
     const openEdit = useBinDialogStore(s => s.openEdit)
     const closeDialog = useBinDialogStore(s => s.close)
@@ -115,7 +141,8 @@ export function BinsList({ headerAction }: BinsListProps) {
         listPath: BINS_PATH,
         navigation: { open: openEdit, leave: staysOnList },
         canWrite,
-        itemsFor: binRowMenuItems,
+        itemsFor,
+        onExtra,
         titleOf: binName,
         menu: BIN_MENU,
     })
@@ -203,7 +230,7 @@ export function BinsList({ headerAction }: BinsListProps) {
             renderTable={renderTable}
             renderCards={renderCards}
             dialog={dialogs}
-            headerAction={headerAction}
+            headerAction={reportButton}
             tabs={<InventoryTabStrip selected="bins" />}
             keepsToolbarWhenEmpty
         />

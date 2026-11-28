@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, vendor balance, expenses by vendor, 1099 summary and detail, Audit Log, reconciliation report]
+tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, vendor balance, expenses by vendor, 1099 summary and detail, Audit Log, reconciliation report, stock by bin location]
 order: 60
 ---
 
@@ -536,6 +536,21 @@ The report stays current: it reads the order lines, not the journal lines, and s
 
 On a phone, each line shows its name and Open amount on the first line, then Ordered, Received and Open on the second. An account line has no quantities, so it shows the first line only. A figure is never cut. Customize and Export are under **⋯**.
 
+## Read the Stock by Bin Location report
+
+To see how many of each Inventory item each bin location holds, open Reports and choose Stock by Bin Location, or press Stock by bin above the list of [bin locations](help://books:bin-locations). To open it for one bin location, open the bin's row menu in that list and choose Stock in this bin.
+
+The report has one group for each bin location that holds stock, open when the report opens, ordered by name. The stock in no bin location is in the group "No bin", at the end, and an inactive bin location has "(inactive)" after its name. The bin row shows how many items it holds, for example "7 items". Under it, each item that the bin holds shows as "<code> · <name>", for example "SHIP-LBL · Shipping labels, 4 x 6 in, roll of 500", with:
+
+- Quantity: how many of the item the bin holds. It is blank on the bin row.
+- Reorder point: the item's reorder point, blank when it has none. It is blank on the bin row.
+
+The report has no Total row, because quantities of different items do not add up. A row with a quantity of 0 does not show, and an inactive item shows only while it has stock. To open an item's page, press its row.
+
+To show only some bin locations, press Add filter, then Bin, and pick one or more bin locations. Then press Apply. To remove the filter, press the × on the Bin chip. To change the order of the items in each bin, press the Order chip: Item name, the default, or Item code. When no bin location holds stock, the report shows "No stock in a bin location".
+
+On a phone, each item shows its label on the first line, then Quantity and Reorder point on the second. Customize and Export are under **⋯**.
+
 ## Reports that you refresh
 
 Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button. The Expenses by Vendor reads every posted expense line on the basis you choose, so it shows the same note and **Refresh** button too. The 1099 Summary and Detail reads posted payment lines too, with no basis to choose, so it also shows the note and **Refresh** button.
@@ -544,7 +559,7 @@ To see the changes made after you opened the report, press **Refresh**, or press
 
 Transaction Detail by Account opened from a figure, in the panel at the side, has its own **Refresh** button.
 
-The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Open Purchase Orders, the Audit Log, the Reconciliation Report and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
+The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Open Purchase Orders, the Stock by Bin Location, the Audit Log, the Reconciliation Report and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
 
 A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Vendor Balance, of the Expenses by Vendor, of the 1099 Summary and Detail, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
 
@@ -558,7 +573,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, the Expenses by Vendor, the 1099 Summary and Detail, Sales by Customer, Sales by Product/Service, the Open Purchase Orders, the Reconciliation Report and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, the Expenses by Vendor, the 1099 Summary and Detail, Sales by Customer, Sales by Product/Service, the Open Purchase Orders, the Stock by Bin Location, the Reconciliation Report and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 
@@ -571,6 +586,8 @@ A report that you build over journal lines, or that shows columns from journal l
 The sales tax data is in four sources: Sales tax lines, Tax agencies, Tax rates and Sales documents. Sales tax lines has one row for each document and tax rate, written when the document is posted. Sales documents holds the invoices, the sales receipts, the credit memos and the refund receipts together. In Sales documents, a credit memo has the Kind "Credit memo" and a refund receipt the Kind "Refund receipt", and their Subtotal, Tax and Total are positive, as they are on the document. A credit memo lowers what the customer owes, so a report that adds totals across kinds must filter by Kind, for example to invoices and sales receipts only. A voided document keeps its tax lines, so filter on the document's status to count only posted documents. For example, start from Sales tax lines to build the tax of each customer.
 
 The purchase orders are in two sources: Purchase orders (one row for each order, with its Status and Open amount) and Purchase order lines (one row for each line, with what is received, billed and open). Products has the field On purchase order: the quantity on open purchase orders that is not received yet.
+
+The stock is in these sources: Bin locations (one row for each bin location, with its Name, Note and Inactive) and Bin stock (one row for each item and bin location, with its Quantity, and links to the Product and the Bin location). Products has the fields Default bin and Low stock, and Stock moves has the fields Bin and Document number.
 
 ## Statement reports
 

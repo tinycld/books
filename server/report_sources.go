@@ -219,6 +219,8 @@ func reportSources() []reports.Source {
 		reconciledLinesSource(),
 		purchaseOrdersSource(),
 		purchaseOrderLinesSource(),
+		binsSource(),
+		binStockSource(),
 	}
 	for i := range sources {
 		sources[i].FiscalStartMonth = booksFiscalStart
@@ -606,11 +608,18 @@ func productsSource() reports.Source {
 			// The open quantity of the product's lines on open purchase
 			// orders, as refreshOnPO keeps it (purchase_order_receipts.go).
 			{Key: "quantity_on_po", Label: "On purchase order", Type: reports.Number, Aggregates: reports.SumAll},
+			// Reorder point above 0 and quantity on hand at or below it, as
+			// the store keeps it (stock.go).
+			{Key: "low_stock", Label: "Low stock", Type: reports.Bool},
+			// The item's code (the Stock by Bin Location labels and orders its
+			// items by it).
+			{Key: "code", Label: "Code", Type: reports.Text},
 		},
 		Links: []reports.Link{
 			{Key: "income_account", Label: "Income account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "income_account"},
 			{Key: "asset_account", Label: "Inventory asset account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "asset_account"},
 			{Key: "preferred_vendor", Label: "Preferred vendor", Target: "books.vendors", Cardinality: reports.ToOne, Field: "preferred_vendor"},
+			{Key: "default_bin", Label: "Default bin", Target: "books.bins", Cardinality: reports.ToOne, Field: "default_bin"},
 			{Key: "stock_moves", Label: "Stock moves", Target: stockMovesKey, Cardinality: reports.ToMany, BackField: "product"},
 			{Key: "stock_layers", Label: "Stock layers", Target: stockLayersKey, Cardinality: reports.ToMany, BackField: "product"},
 			// The back link of books.sales_lines' product, for the builder.

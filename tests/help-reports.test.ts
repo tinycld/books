@@ -1073,6 +1073,20 @@ describe('help/reports.md', () => {
         expect(section('## Who sees Books reports')).toContain('the Expenses by Vendor')
     })
 
+    // Inventory-adjust spec §3.9: shared with every Books reader as the other Books reports.
+    it('"Who sees Books reports" names the Stock by Bin Location', () => {
+        expect(section('## Who sees Books reports')).toContain('Stock by Bin Location')
+    })
+
+    // Inventory-adjust spec §3.9: the report reads no journal line, so it stays current.
+    it('"Reports that you refresh" lists the Stock by Bin Location with the reports that stay current', () => {
+        const current =
+            section('## Reports that you refresh')
+                .split(/(?<=[.!?])\s+/)
+                .find(sentence => /stay current/.test(sentence)) ?? ''
+        expect(current).toContain('Stock by Bin Location')
+    })
+
     // Sentences that do not break inside a quoted note ("This report does not update by
     // itself. Press Refresh …").
     const sentencesOutsideQuotes = (text: string) =>

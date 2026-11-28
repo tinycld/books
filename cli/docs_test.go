@@ -182,6 +182,11 @@ func TestHelpShowsTheBinLocationCommandsAndFields(t *testing.T) {
 	if !strings.Contains(bins, "(help://books:inventory)") {
 		t.Error("the bin locations section does not link help://books:inventory")
 	}
+	// Inventory-adjust checkpoint 9: the bin locations topic is the app's side of
+	// these commands.
+	if !strings.Contains(bins, "(help://books:bin-locations)") {
+		t.Error("the bin locations section does not link help://books:bin-locations")
+	}
 	inventory := codeText(bins + helpSection(page, "## To see the stock of an Inventory item") + helpSection(page, "## To adjust inventory"))
 	for _, name := range []string{"bin", "from_bin", "to_bin", "default_bin", "low_stock", "document_number", "value_change", "replaces", "replaced_by"} {
 		shown := regexp.MustCompile(`(?m)(^|[^a-z_-])` + name + `($|[^a-z_-])`)

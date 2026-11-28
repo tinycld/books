@@ -1,5 +1,8 @@
-import { View } from 'react-native'
+import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useState } from 'react'
+import { Text, View } from 'react-native'
 import { useBooksAccess } from '../../hooks/useBooksAccess'
+import { useFitsTable } from '../../hooks/useFitsTable'
 import { useListFilters } from '../../hooks/useListFilters'
 import { useProductActions } from '../../hooks/useProductActions'
 import { useProductNavigation } from '../../hooks/useProductNavigation'
@@ -8,6 +11,7 @@ import { useRecordList } from '../../hooks/useRecordList'
 import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
 import { useShippedReportHref } from '../../hooks/useShippedReportHref'
 import { type ListLayout, RECORD_LIST_WIDTH } from '../../lib/detail-surface'
+import { INVENTORY_TEXTS } from '../../lib/inventory-adjust-fixture'
 import { productListCopy } from '../../lib/product-display'
 import {
     PRODUCT_COLUMNS,
@@ -34,6 +38,7 @@ import { DeleteProductDialog } from './DeleteProductDialog'
 import { InventoryTabStrip } from './InventoryTabStrip'
 import { ProductCard } from './ProductCard'
 import { ProductRow } from './ProductRow'
+import { ProductsToolbar } from './ProductsToolbar'
 
 const PRODUCT_MENU = {
     triggerPrefix: 'product-menu',
@@ -71,9 +76,22 @@ function ProductTableHeader({ testID, isNameOnly }: { testID: string; isNameOnly
     )
 }
 
-// The Products and services list. The open product (`openId`, from the URL) is marked
+function NoLowItems() {
+    return (
+        <View testID="products-no-low" className="items-center gap-4 p-8">
+            <Text className="text-base font-medium text-foreground">
+                {INVENTORY_TEXTS.noLowItems}
+            </Text>
+        </View>
+    )
+}
+
+// The Products and services list: the table where the list's own width holds its 604 px
+// minimum (useFitsTable), cards below it. The open product (`openId`, from the URL) is marked
 // on the panel surface, where the list stays in view beside it; beside an Inventory
-// item's page it shows the names only (`layout`).
+// item's page it shows the names only (`layout`). The toolbar's Low stock chip keeps the
+// items the server marks low (useProductsQuery `lowOnly`); with it on and no row the list
+// says no item is low (NoLowItems) in place of the no-match state.
 export function ProductsList({ openId, layout }: { openId: string; layout: ListLayout }) {
     const isNameOnly = layout === 'names'
     const tableMinWidth = isNameOnly ? RECORD_LIST_WIDTH : PRODUCT_TABLE_MIN_WIDTH
@@ -96,8 +114,28 @@ export function ProductsList({ openId, layout }: { openId: string; layout: ListL
     // A name-only row draws no menu, so it asks for none.
     const menuOf = (product: ProductRecord) => (isNameOnly ? null : menus.menuFor(product))
     const filters = useListFilters()
-    const source = useProductsQuery(filters.listFilters)
-    const list = useRecordList(filters, source)
+    // The Low stock chip. Local to the list, which its layout keeps mounted while products
+    // open and close.
+    const [lowOnly, setLowOnly] = useState(false)
+    const toggleLowOnly = () => setLowOnly(on => !on)
+    const source = useProductsQuery(filters.listFilters, lowOnly)
+    // The chip is part of the query, so a change of it keeps the last rows until the new
+    // query settles (keepLastSettled reads `view`).
+    const listFilters = { ...filters.listFilters, view: lowOnly ? 'low' : '' }
+    const list = useRecordList({ ...filters, listFilters }, source)
+    const isPhone = useBreakpoint() === 'mobile'
+    const copy = productListCopy(canWrite)
+    const toolbar = (
+        <ProductsToolbar
+            list={filters}
+            placeholder={copy.searchPlaceholder}
+            lowOnly={lowOnly}
+            onToggleLowOnly={toggleLowOnly}
+            isPhone={isPhone}
+        />
+    )
+    // With the chip on, a list with no row has no low item to show (spec §3.10).
+    const noLow = lowOnly ? <NoLowItems /> : undefined
     const loadError = list.viewState === 'error' ? PRODUCT_LOAD_ERROR : null
     const dialog = (
         <DeleteProductDialog
@@ -123,7 +161,12 @@ export function ProductsList({ openId, layout }: { openId: string; layout: ListL
         )
     // Unwrapped, the press event would reach `openNew(type?)` as the type.
     const openChooser = () => navigation.openNew()
-    const renderTable = (selectedId: string) => (
+    const fits = useFitsTable(PRODUCT_TABLE_MIN_WIDTH)
+    // The frame picks by breakpoint; the list's own width picks here, so a pane narrower
+    // than the table (768 with the sidebar open) shows cards. The column of names is
+    // RECORD_LIST_WIDTH wide by design, so it keeps its one-column table.
+    const showsCardsWide = !isNameOnly && fits.showCards
+    const renderTableBody = (selectedId: string) => (
         <ListTable<ProductRecord>
             testID="products-table"
             minWidth={tableMinWidth}
@@ -132,6 +175,7 @@ export function ProductsList({ openId, layout }: { openId: string; layout: ListL
             rows={list.rows}
             keyOf={productKey}
             onNearEnd={list.onNearEnd}
+            onGutter={fits.onGutter}
             renderRow={product => (
                 <ProductRow
                     product={product}
@@ -143,7 +187,17 @@ export function ProductsList({ openId, layout }: { openId: string; layout: ListL
             )}
         />
     )
-    const renderCards = () => (
+    const renderTable = (selectedId: string) => {
+        const body = showsCardsWide ? renderCardsFor(selectedId) : renderTableBody(selectedId)
+        return (
+            <View className="flex-1" onLayout={fits.onLayout}>
+                {body}
+            </View>
+        )
+    }
+    // The panel surface's cards (a pane below the table's minimum) mark the open product;
+    // the phone's cards (renderCards) open a page in place of the list, so mark none.
+    const renderCardsFor = (selectedId: string) => (
         <ListCards<ProductRecord>
             testID="products-cards"
             rows={list.rows}
@@ -154,18 +208,20 @@ export function ProductsList({ openId, layout }: { openId: string; layout: ListL
                 <ProductCard
                     product={product}
                     height={height}
+                    isSelected={product.id === selectedId}
                     onOpen={navigation.open}
                     menu={menus.menuFor(product)}
                 />
             )}
         />
     )
+    const renderCards = () => renderCardsFor('')
 
     return (
         <RecordListFrame
             listPrefix="products"
             recordPrefix="product"
-            copy={productListCopy(canWrite)}
+            copy={copy}
             list={list}
             canWrite={canWrite}
             openId={openId}
@@ -179,6 +235,8 @@ export function ProductsList({ openId, layout }: { openId: string; layout: ListL
             dialog={dialog}
             headerAction={salesButton}
             tabs={<InventoryTabStrip selected="products" />}
+            toolbar={toolbar}
+            filteredEmpty={noLow}
         />
     )
 }
