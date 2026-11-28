@@ -24,6 +24,8 @@ type cliField struct {
 	Type     string `json:"type"`
 	Required bool   `json:"required"`
 	ReadOnly bool   `json:"readOnly"`
+	// CreateOnly: a field `add` takes and `edit` refuses (an adjustment's replaces).
+	CreateOnly bool `json:"createOnly"`
 	// Generated: required by the schema, made by the server when left out.
 	Generated bool     `json:"generated"`
 	Enum      []string `json:"enum"`
@@ -334,6 +336,9 @@ func TestCLIResources_ServerAcceptsEveryListQuery(t *testing.T) {
 	// So are the lists of `inventory` (cli/inventory.go).
 	collectionOf["inventory moves"] = "books_stock_moves"
 	collectionOf["inventory layers"] = "books_stock_layers"
+	collectionOf["inventory bin-stock"] = "books_bin_stock"
+	// And `bin-transfers list` (cli/inventory.go).
+	collectionOf["bin-transfers"] = "books_bin_transfers"
 	calls := []apiReq{}
 	for _, c := range loadListFilterCases(t) {
 		list := strings.TrimSpace(c.Resource + " " + c.View)

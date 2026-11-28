@@ -155,9 +155,14 @@ func above0(value any) bool {
 }
 
 // setFlags sets each flag of the table on a row body that a create or an
-// update sends.
+// update sends. A row from the caller's input never holds a flag (it is in
+// omit, so checkRow refuses it); a row copied from storage (writableRows) holds
+// the stored flag, and the body keeps it.
 func (t *lineTable) setFlags(body, row map[string]any) {
 	for _, flag := range t.Flags {
+		if _, stored := row[flag.Field]; stored {
+			continue
+		}
 		body[flag.Field] = flag.value(row)
 	}
 }
@@ -264,6 +269,9 @@ func checkViews(doc *document, names map[string]bool) error {
 		}
 		words[view.Word] = true
 		if err := checkResource(&view.resource, names); err != nil {
+			return fmt.Errorf("view %q: %w", view.Word, err)
+		}
+		if err := refuseCreateOnly(&view.resource); err != nil {
 			return fmt.Errorf("view %q: %w", view.Word, err)
 		}
 	}
@@ -536,9 +544,16 @@ func checkDocument(doc *document, names map[string]bool) error {
 	default:
 		return fmt.Errorf("unknown lifecycle %q", doc.Lifecycle)
 	}
-	// A type with `replaces` is corrected by `edit`; one without is not.
-	if replaces := doc.field("replaces"); replaces != nil && (!replaces.ReadOnly || replaces.Type != typeID || replaces.Ref != doc.Name) {
-		return fmt.Errorf("replaces is read-only, the id of a document of its own type")
+	// A type with `replaces` is corrected by `edit`; one without is not. Books
+	// sets `replaces`, unless the field is createOnly: then `add` takes it too
+	// (inventory-adjustments) and `edit` still refuses it (checkInput).
+	if replaces := doc.field("replaces"); replaces != nil {
+		if replaces.Type != typeID || replaces.Ref != doc.Name {
+			return fmt.Errorf("replaces is the id of a document of its own type")
+		}
+		if !replaces.ReadOnly && !replaces.CreateOnly {
+			return fmt.Errorf("replaces is read-only unless createOnly: only then does `add` take it")
+		}
 	}
 	if revision := doc.field("revision"); revision != nil && (!revision.ReadOnly || revision.Type != typeInteger) {
 		return fmt.Errorf("revision is a read-only integer")
@@ -755,6 +770,9 @@ func checkLineTable(table *lineTable, names map[string]bool) error {
 		}
 	}
 	res := table.asResource()
+	if err := refuseCreateOnly(res); err != nil {
+		return err
+	}
 	for _, rule := range table.Computed {
 		if f := res.field(rule.Field); f == nil || f.ReadOnly || f.Required {
 			return fmt.Errorf("computed names %q, which is not an optional field a caller may send", rule.Field)

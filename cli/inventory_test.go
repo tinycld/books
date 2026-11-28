@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 )
 
@@ -45,12 +46,25 @@ func inventoryFake(t *testing.T) *fakeBooks {
 }
 
 func TestInventoryResourcesAreLegalDefinitions(t *testing.T) {
-	names := map[string]bool{"products": true, "accounts": true, "inventory moves": true}
+	names := map[string]bool{"products": true, "accounts": true, "inventory moves": true, "bins": true}
+	// The lists of the group: `moves`, `layers` and `bin-stock`
+	// (inventory-adjust spec §3.11).
+	words := []string{}
 	for word, res := range inventoryResources() {
+		words = append(words, word)
 		copied := *res
 		if err := checkResource(&copied, names); err != nil {
 			t.Errorf("%s: %v", word, err)
 		}
+	}
+	slices.Sort(words)
+	if want := []string{"bin-stock", "layers", "moves"}; !slices.Equal(words, want) {
+		t.Errorf("inventory lists = %v, want %v", words, want)
+	}
+	// `bin-transfers` is a group of its own, built in Go too.
+	copied := binTransfersResource
+	if err := checkResource(&copied, names); err != nil {
+		t.Errorf("bin-transfers: %v", err)
 	}
 }
 

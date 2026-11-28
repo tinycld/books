@@ -415,6 +415,51 @@ func TestOAuth_BankMatchCollections(t *testing.T) {
 	}
 }
 
+// Inventory-adjust spec §3.11 and §4: `tinycld books bins` and `bin-transfers`
+// write their collections with books:write; `inventory bin-stock` reads
+// books_bin_stock, which only Books writes, so no scope writes it.
+func TestOAuth_BinCollections(t *testing.T) {
+	collections := oauthPackage().Collections
+	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	ro := oauth.Access{Read: []string{scopeRead}}
+	for c, access := range map[string]oauth.Access{
+		"books_bins":          rw,
+		"books_bin_transfers": rw,
+		"books_bin_stock":     ro,
+	} {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, access.Read) || len(got.Write) != len(access.Write) ||
+			(len(access.Write) > 0 && !reflect.DeepEqual(got.Write, access.Write)) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, access.Read, access.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	for _, c := range []string{"books_bins", "books_bin_transfers", "books_bin_stock"} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+	}
+	for _, c := range []string{"books_bins", "books_bin_transfers"} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("POST %s: books:write must write", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("POST %s: books:read alone must not write", path)
+		}
+	}
+	if path := "/api/collections/books_bin_stock/records"; oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+		t.Errorf("POST %s: no Books scope may write", path)
+	}
+}
+
 // A/R Aging spec §4: a token only reads the stored receivable items, which
 // only Books writes. The two views they replaced have no entry.
 func TestOAuth_ReceivableItems(t *testing.T) {

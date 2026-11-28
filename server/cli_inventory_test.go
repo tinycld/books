@@ -10,15 +10,17 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// cli/inventory.go declares the fields of its two lists in Go, so
+// cli/inventory.go declares the fields of its lists in Go, so
 // TestCLIResources_MatchTheCollections does not see them. Each one must be a
 // field of its collection that the API sends. When a list gains a field, add
 // it here.
 func TestCLIInventory_DeclaredFieldsAreOnTheCollections(t *testing.T) {
 	app := newBooksApp(t)
 	for collection, fields := range map[string][]string{
-		"books_stock_moves":  {"product", "date", "seq", "kind", "source", "document", "line", "quantity", "value", "quantity_after", "value_after", "asset_account", "offset_account", "currency"},
-		"books_stock_layers": {"product", "move", "date", "quantity", "value", "position", "currency"},
+		"books_stock_moves":   {"product", "date", "seq", "kind", "source", "document", "line", "quantity", "value", "quantity_after", "value_after", "asset_account", "offset_account", "currency", "bin", "document_number"},
+		"books_stock_layers":  {"product", "move", "date", "quantity", "value", "position", "currency"},
+		"books_bin_stock":     {"product", "bin", "quantity"},
+		"books_bin_transfers": {"product", "from_bin", "to_bin", "quantity", "memo", "created", "created_by"},
 	} {
 		col, err := app.FindCollectionByNameOrId(collection)
 		if err != nil {
@@ -196,7 +198,7 @@ func TestCLIInventory_ATokenChangesTheLinesOfADraft(t *testing.T) {
 		cliOp("POST", lines, "", fmt.Sprintf(`{"adjustment":%q,"id":"cliadjline00001","position":0,"product":%q,"quantity":10,"value":5000,"value_given":true}`, id, widget.Id)),
 	).requireStatus(t, http.StatusOK)
 	batch(
-		rowUpdateOp(lines, "cliadjline00001", fmt.Sprintf(`"position":0,"product":%q,"quantity":12,"value":6000,"value_given":true`, widget.Id)),
+		rowUpdateOp(lines, "cliadjline00001", fmt.Sprintf(`"bin":null,"position":0,"product":%q,"quantity":12,"value":6000,"value_given":true`, widget.Id)),
 		cliOp("POST", lines, "", fmt.Sprintf(`{"adjustment":%q,"id":"cliadjline00002","position":1,"product":%q,"value":-300,"value_given":false}`, id, widget.Id)),
 		cliOp("PATCH", inventoryAdjustmentsCollection, id, `{"memo":"stock count"}`),
 	).requireStatus(t, http.StatusOK)

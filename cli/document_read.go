@@ -81,6 +81,13 @@ func withLines(ctx context.Context, c *client.Client, doc *document, raw rawReco
 			// Not printed (it is not a key): an edit of a draft keeps a row of a
 			// table that refuses updates only when it already is at its place.
 			line.values["position"] = row["position"]
+			// Not printed either: a correction copies each stored flag of a row
+			// (writableRows), as Books cannot work it out again from the values.
+			for _, flag := range table.Flags {
+				if value, ok := row[flag.Field]; ok {
+					line.values[flag.Field] = value
+				}
+			}
 			lines = append(lines, line)
 		}
 		rec.keys = append(rec.keys, table.Key)

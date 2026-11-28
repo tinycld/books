@@ -150,6 +150,47 @@ func TestHelpExitLineHasEveryFailureCode(t *testing.T) {
 	}
 }
 
+// helpSection is the text of the section of the page under the heading, up to
+// the next heading of the same level; "" when the page has no such heading.
+func helpSection(page, heading string) string {
+	start := strings.Index(page, "\n"+heading+"\n")
+	if start < 0 {
+		return ""
+	}
+	rest := page[start+len(heading)+2:]
+	if end := strings.Index(rest, "\n## "); end >= 0 {
+		return rest[:end]
+	}
+	return rest
+}
+
+// Inventory-adjust spec §3.11: the bin commands have a section of their own,
+// with one example of each command, and the inventory sections name each new
+// field of the inventory commands.
+func TestHelpShowsTheBinLocationCommandsAndFields(t *testing.T) {
+	page := readDoc(t, helpPage)
+	bins := helpSection(page, "## To keep stock in bin locations")
+	if bins == "" {
+		t.Fatal(`the help topic has no section "## To keep stock in bin locations"`)
+	}
+	examples := codeText(bins)
+	for _, command := range []string{"tinycld books bins ", "tinycld books bin-transfers add", "tinycld books inventory bin-stock"} {
+		if !strings.Contains(examples, command) {
+			t.Errorf("the bin locations section has no example of `%s`", strings.TrimSpace(command))
+		}
+	}
+	if !strings.Contains(bins, "(help://books:inventory)") {
+		t.Error("the bin locations section does not link help://books:inventory")
+	}
+	inventory := codeText(bins + helpSection(page, "## To see the stock of an Inventory item") + helpSection(page, "## To adjust inventory"))
+	for _, name := range []string{"bin", "from_bin", "to_bin", "default_bin", "low_stock", "document_number", "value_change", "replaces", "replaced_by"} {
+		shown := regexp.MustCompile(`(?m)(^|[^a-z_-])` + name + `($|[^a-z_-])`)
+		if !shown.MatchString(inventory) {
+			t.Errorf("the inventory sections of the help topic do not show the field `%s`", name)
+		}
+	}
+}
+
 func TestHelpTopicFrontmatter(t *testing.T) {
 	help := readDoc(t, helpPage)
 	if !strings.HasPrefix(help, "---\ntitle: Books from the command line\nsummary: ") {
