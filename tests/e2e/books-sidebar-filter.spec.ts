@@ -52,7 +52,7 @@ test.describe('books-sidebar-filter: find a row of the Books sidebar (desktop)',
         const filter = shown(page, 'books-sidebar-filter')
 
         await filter.fill('new inv')
-        await expect(matches(page)).toHaveText(['InvoiceNew'])
+        await expect(matches(page)).toHaveText(['InvoiceNew', 'Inventory adjustmentNew'])
 
         await filter.fill('reconcile')
         await expect(shown(page, 'books-sidebar-match-nav-reconcile')).toBeVisible()
