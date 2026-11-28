@@ -6,6 +6,7 @@ import {
     type AdjustmentListSort,
     useAdjustmentsQuery,
 } from '../../hooks/useAdjustmentsQuery'
+import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useFitsTable } from '../../hooks/useFitsTable'
 import { useListFilters } from '../../hooks/useListFilters'
 import { useRecordList } from '../../hooks/useRecordList'
@@ -49,12 +50,20 @@ const LOAD_ERROR = 'Could not load inventory adjustments'
 
 const DEFAULT_SORT: AdjustmentListSort = { key: 'date', isAscending: false }
 
-// The row menu of this checkpoint: Open. Edit, Copy, Void and Delete come with the form
-// and the draft actions.
-type AdjustmentMenuItem = 'open'
-const MENU_ITEMS: readonly AdjustmentMenuItem[] = ['open']
-const MENU_LABELS: Record<AdjustmentMenuItem, string> = { open: 'Open' }
-const MENU_TEST_IDS: Record<AdjustmentMenuItem, string> = { open: 'inventory-adjustment-menu-open' }
+// The row menu: Open, and Edit on a draft for a writer (it opens the draft's form). Copy,
+// Void and Delete come with the draft actions.
+type AdjustmentMenuItem = 'open' | 'edit'
+const MENU_LABELS: Record<AdjustmentMenuItem, string> = { open: 'Open', edit: 'Edit' }
+const MENU_TEST_IDS: Record<AdjustmentMenuItem, string> = {
+    open: 'inventory-adjustment-menu-open',
+    edit: 'inventory-adjustment-menu-edit',
+}
+// Open and Edit start no write, so neither waits for one.
+const MENU_WRITES: ReadonlySet<string> = new Set()
+
+function menuItemsOf(row: AdjustmentListRow, canWrite: boolean): AdjustmentMenuItem[] {
+    return canWrite && row.status === 'draft' ? ['open', 'edit'] : ['open']
+}
 
 const MENU_SLOT_STYLE = { width: ADJUSTMENT_ROW_MENU_WIDTH, flexShrink: 0 }
 
@@ -117,6 +126,7 @@ function AdjustmentsHeader({ sort, onSort }: HeaderProps) {
  */
 export function AdjustmentsList({ openId }: { openId: string }) {
     const navigation = useRecordNavigation(ADJUSTMENTS_PATH)
+    const { canWrite } = useBooksAccess()
     const isPhone = useBreakpoint() === 'mobile'
     const filters = useListFilters()
     // Local to the list, which its layout keeps mounted while adjustments open and close.
@@ -147,11 +157,12 @@ export function AdjustmentsList({ openId }: { openId: string }) {
             title={row.number || 'Inventory adjustment'}
             triggerTestId={`inventory-adjustment-menu-${row.id}`}
             triggerLabel="Inventory adjustment actions"
-            items={MENU_ITEMS}
+            items={menuItemsOf(row, canWrite)}
             labels={MENU_LABELS}
             testIds={MENU_TEST_IDS}
             onSelect={() => navigation.open(row.id)}
             isWriting={false}
+            writes={MENU_WRITES}
         />
     )
     const cards = (
@@ -214,20 +225,22 @@ export function AdjustmentsList({ openId }: { openId: string }) {
             isPhone={isPhone}
         />
     )
-    const ignoreNew = () => {}
+    // The load error's banner stays while the read fails; Retry is its way out.
+    const keepBanner = () => {}
+    const openNew = () => navigation.openNew()
     return (
         <RecordListFrame
             listPrefix={LIST_PREFIX}
             recordPrefix="inventory-adjustment"
             copy={COPY}
             list={list}
-            canWrite={false}
+            canWrite={canWrite}
             openId={openId}
-            onNew={ignoreNew}
+            onNew={openNew}
             onRetry={source.retry}
             bannerMessage={loadError}
             isLoadError={loadError !== null}
-            onDismissBanner={ignoreNew}
+            onDismissBanner={keepBanner}
             renderTable={renderTable}
             renderCards={renderCards}
             dialog={null}

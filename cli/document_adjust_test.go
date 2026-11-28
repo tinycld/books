@@ -62,8 +62,8 @@ func TestInventoryAdjustmentAddAndPost(t *testing.T) {
 	}
 	want := `[` +
 		`{"method":"POST","url":"/api/collections/books_inventory_adjustments/records","body":{"date":"2026-09-05","id":"cliadjust000001","kind":"manual","memo":"count","status":"draft"}},` +
-		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000001","position":0,"product":"` + stockWidget + `","quantity":10,"value":5000}},` +
-		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000001","position":1,"product":"` + stockWidget + `","quantity":-2.5}},` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000001","position":0,"product":"` + stockWidget + `","quantity":10,"value":5000,"value_given":true}},` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"cliadjust000001","position":1,"product":"` + stockWidget + `","quantity":-2.5,"value_given":false}},` +
 		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustments/records/cliadjust000001","body":{"status":"posted"}}]`
 	if got := sentBatch(t, f, 0); got != want {
 		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)
@@ -128,11 +128,46 @@ func TestInventoryAdjustmentEditOfADraftChangesItsLines(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `[` +
-		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustment_lines/records/lnjustdraft0001","body":{"position":0,"product":"` + stockWidget + `","quantity":12,"value":6000}},` +
-		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"` + adjustDraft + `","id":"cliadjline00002","position":1,"product":"` + stockWidget + `","value":-300}},` +
+		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustment_lines/records/lnjustdraft0001","body":{"position":0,"product":"` + stockWidget + `","quantity":12,"value":6000,"value_given":true}},` +
+		`{"method":"POST","url":"/api/collections/books_inventory_adjustment_lines/records","body":{"adjustment":"` + adjustDraft + `","id":"cliadjline00002","position":1,"product":"` + stockWidget + `","value":-300,"value_given":false}},` +
 		`{"method":"PATCH","url":"/api/collections/books_inventory_adjustments/records/` + adjustDraft + `","body":{"memo":"stock count"}}]`
 	if got := sentBatch(t, f, 0); got != want {
 		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// The app stores `value_given: true` on a line whose Value change the user
+// typed. A CLI edit PATCHes that stored line, so it must state value_given
+// itself: the line help says that on an increase "0 or left out takes the last
+// known cost", and the server values an increase at 0 when value_given is true
+// (server/inventory_adjustments.go). After the edit and the post, the stored
+// line is an increase whose value nobody gave.
+func TestInventoryAdjustmentEditOfAnAppLineFollowsTheLineHelp(t *testing.T) {
+	for name, line := range map[string]string{
+		"value 0":       `{"product": "` + stockWidget + `", "quantity": 5, "value": 0}`,
+		"value omitted": `{"product": "` + stockWidget + `", "quantity": 5}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := adjustments(t)
+			stored := f.find("books_inventory_adjustment_lines", "lnjustdraft0001")
+			stored["quantity"] = json.Number("5")
+			stored["value"] = json.Number("300")
+			stored["value_given"] = true
+			if _, _, err := runCmd(t, f.serve(), `{"lines": [`+line+`]}`,
+				"books", "inventory-adjustments", "edit", adjustDraft, "--input", "-", "--json"); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := runCmd(t, f.serve(), "", "books", "inventory-adjustments", "post", adjustDraft, "--json"); err != nil {
+				t.Fatal(err)
+			}
+			row := f.find("books_inventory_adjustment_lines", "lnjustdraft0001")
+			if got, ok := row["value_given"].(bool); !ok || got {
+				t.Errorf("the stored line has value_given = %v (%T), want false: the 5 units take the last known cost, as the line help says", row["value_given"], row["value_given"])
+			}
+			if got := f.find("books_inventory_adjustments", adjustDraft)["status"]; got != "posted" {
+				t.Errorf("status = %v, want posted", got)
+			}
+		})
 	}
 }
 

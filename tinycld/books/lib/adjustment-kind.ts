@@ -24,3 +24,11 @@ export function adjustmentTitle(number: string): string {
     if (!number) return 'New inventory adjustment'
     return `Inventory adjustment ${number}`
 }
+
+// The form's title (spec §3.2): "New inventory adjustment" until a save stores it; a saved
+// draft, which has no number yet, is "Inventory adjustment".
+export function adjustmentFormTitle(number: string, isSaved: boolean): string {
+    if (!isSaved) return 'New inventory adjustment'
+    if (!number) return 'Inventory adjustment'
+    return adjustmentTitle(number)
+}

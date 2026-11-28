@@ -1928,6 +1928,7 @@ export async function seedInventory(
                 position: line.position,
                 quantity: line.quantity,
                 value: line.value,
+                value_given: line.value_given,
                 bin: binOf(line.bin),
             })
         }

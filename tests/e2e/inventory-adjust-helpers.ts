@@ -1,6 +1,18 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { isPhone } from './account-register-helpers'
-import { openProductsList } from './products-services-helpers'
+import { localToday } from './invoice-helpers'
+import { newActionItem, openNewMenu } from './new-menu-helpers'
+import {
+    expectSavedToList,
+    field,
+    openNewProduct,
+    openProductsList,
+    pickOption,
+} from './products-services-helpers'
+
+// A per-run memo (the same as the other document specs'), so an adjustment a test makes
+// is found again by it.
+export { uniqueMemo } from './invoice-helpers'
 
 // The inventory adjustments list (inventory-adjust spec §3.5) and its read view. The list
 // is a tab of Products and services; a screen that a later screen covers stays mounted,
@@ -79,4 +91,79 @@ export async function pressStatusChip(page: Page, chip: 'all' | 'draft' | 'poste
     await button.click()
     await expect(button).toHaveAttribute('aria-pressed', 'true')
     await listSettled(page)
+}
+
+// ---- The adjustment form (inventory-adjust spec §3.2 to §3.4) ----
+
+// A new adjustment's form: `books/inventory-adjustments/new`, with or without a query.
+export const NEW_ADJUSTMENT_URL = /\/books\/inventory-adjustments\/new(?:[?#].*)?$/
+
+/**
+ * Makes an Inventory item through the product form, from anywhere in Books, with its
+ * opening stock dated today (`quantity` "10", `value` "50.00"), and, given `bin`, the bin
+ * location's name as its Default bin. Leaves the page on the products list.
+ */
+export async function makeInventoryItem(
+    page: Page,
+    item: { name: string; quantity: string; value: string; bin?: string }
+) {
+    await openNewProduct(page, 'inventory')
+    await field(page, 'name').fill(item.name)
+    await field(page, 'opening_quantity').fill(item.quantity)
+    await field(page, 'opening_quantity').press('Tab')
+    await field(page, 'opening_value').fill(item.value)
+    await field(page, 'opening_value').press('Tab')
+    await field(page, 'opening_date').fill(await localToday(page))
+    if (item.bin !== undefined) await pickOption(page, 'default_bin', item.bin)
+    await page.getByTestId('product-save').click()
+    await expectSavedToList(page)
+}
+
+// Books must be open. The Inventory adjustments tab (unless it is the shown screen), then
+// + New → Inventory adjustment (on a phone the round New button opens the New sheet).
+// Waits for the new form.
+export async function openNewAdjustment(page: Page) {
+    if (!(await shown(page, 'inventory-adjustments').isVisible())) {
+        await openInventoryTab(page, 'Inventory adjustments')
+    }
+    await openNewMenu(page)
+    await newActionItem(page, 'inventory_adjustment').click()
+    await expect(page).toHaveURL(NEW_ADJUSTMENT_URL)
+    await expect(shown(page, 'inventory-adjustment-form')).toBeVisible()
+}
+
+export type AdjustmentLineCell = 'item' | 'bin' | 'on-hand' | 'new' | 'change' | 'value' | 'menu'
+
+// A cell of the shown form's line `index` (0 for line 1): `inventory-adjustment-line-<cell>-<n>`.
+export function adjustmentLineCell(page: Page, index: number, cell: AdjustmentLineCell): Locator {
+    return shown(page, `inventory-adjustment-line-${cell}-${index}`)
+}
+
+// The number of lines (rows or cards) of the shown form: `inventory-adjustment-line-<n>`.
+export function adjustmentLineCount(page: Page): Promise<number> {
+    return shown(page, 'inventory-adjustment-form')
+        .locator('[data-testid^="inventory-adjustment-line-"]')
+        .evaluateAll(
+            nodes =>
+                nodes.filter(node =>
+                    /^inventory-adjustment-line-\d+$/.test(node.getAttribute('data-testid') ?? '')
+                ).length
+        )
+}
+
+// The adjustment's number in the shown title "Inventory adjustment <number>".
+export async function adjustmentNumberOf(page: Page): Promise<string> {
+    const title = shown(page, 'inventory-adjustment-title')
+    await expect(title).toHaveText(/^Inventory adjustment \S+$/)
+    return (await title.innerText()).replace('Inventory adjustment ', '')
+}
+
+// Presses Post on the shown form and waits for the posted adjustment's read view. Returns
+// its number.
+export async function postAdjustment(page: Page): Promise<string> {
+    await shown(page, 'inventory-adjustment-post').click()
+    await expect(page).toHaveURL(ADJUSTMENT_URL)
+    await expect(shown(page, 'inventory-adjustment-read')).toBeVisible()
+    await expect(shown(page, 'inventory-adjustment-badge')).toHaveText('Posted')
+    return adjustmentNumberOf(page)
 }

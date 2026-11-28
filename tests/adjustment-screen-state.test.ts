@@ -63,6 +63,12 @@ describe('adjustmentScreenState', () => {
         }
     })
 
+    it('keeps a saved draft in the form while its post is held, also once the status reads posted', () => {
+        // The optimistic `posted` of a held post, which the server may still refuse.
+        expect(adjustmentScreenState({ ...DRAFT, status: 'posted', isHeld: true })).toBe('form')
+        expect(adjustmentScreenState({ ...DRAFT, status: 'draft', isHeld: true })).toBe('form')
+    })
+
     it('gives ?replaces of a draft or a void adjustment cannot-edit', () => {
         expect(adjustmentScreenState(CORRECTION)).toBe('form')
         expect(adjustmentScreenState({ ...CORRECTION, replacesStatus: 'draft' })).toBe(

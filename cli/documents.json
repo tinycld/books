@@ -1167,11 +1167,12 @@
                     "parent": "adjustment",
                     "sort": "position,id",
                     "max": 500,
-                    "omit": ["adjustment", "position", "bin", "posted_value"],
+                    "omit": ["adjustment", "position", "bin", "posted_value", "value_given"],
+                    "flags": [{ "field": "value_given", "above0": ["quantity", "value"] }],
                     "fields": [
                         { "name": "product", "type": "id", "ref": "products", "required": true, "help": "the Inventory item" },
                         { "name": "quantity", "type": "number", "help": "the change of the quantity, with at most 2 decimals: above 0 into stock, below 0 out of stock, 0 for a change of value only" },
-                        { "name": "value", "type": "integer", "help": "the change of the value of the stock, in cents. With a quantity above 0, it is the cost of that quantity. With a quantity below 0, leave it out: Books takes the cost from the costing method. With no quantity, it changes the value only, up or down" }
+                        { "name": "value", "type": "integer", "help": "the change of the value of the stock, in cents. With a quantity above 0, it is the cost of that quantity; 0 or left out takes the last known cost. With a quantity below 0, leave it out: Books takes the cost from the costing method. With no quantity, it changes the value only, up or down" }
                     ]
                 }
             ]

@@ -2,6 +2,7 @@ import { log } from '@tinycld/core/lib/logger'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { adjustmentScreenState } from '../lib/adjustment-screen-state'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
+import { useAdjustmentSaveStore } from '../stores/adjustment-save-store'
 import { useAdjustmentRecord } from './useAdjustmentRecord'
 import { useBooksAccess } from './useBooksAccess'
 import { useHasBinsQuery } from './useHasBins'
@@ -13,6 +14,7 @@ const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
  * Every read of the inventory adjustment screen (inventory-adjust spec §3.5, §3.13):
  * access, the adjustment at `id` with its lines, whether the book has a bin location
  * (the Bin column), and the number of a re-cost's source document (useRecostSourceNumber).
+ * A save that holds this adjustment (stores/adjustment-save-store.ts) keeps the form.
  * Returns which surface to show (adjustmentScreenState), `hasBins`, `sourceNumber`, and
  * one Retry over every failed read (merged recoveries). `id` is null at
  * `books/inventory-adjustments/new`.
@@ -22,6 +24,8 @@ export function useAdjustmentScreen(id: string | null) {
     const record = useAdjustmentRecord(id ?? '')
     const bins = useHasBinsQuery()
     const source = useRecostSourceNumber(record.adjustment)
+    // A save of this adjustment's form runs: its optimistic `posted` keeps the form.
+    const isHeld = useAdjustmentSaveStore(state => id !== null && state.holding?.id === id)
     const accessRecovery: LiveRecovery = access.isError
         ? { queries: [access.collection], sources: [] }
         : NO_RECOVERY
@@ -37,7 +41,7 @@ export function useAdjustmentScreen(id: string | null) {
         canWrite: access.canWrite,
         isNew: id === null,
         status: record.adjustment?.status ?? null,
-        isHeld: false,
+        isHeld,
         replacesStatus: undefined,
         replacesReady: true,
         replacesError: false,

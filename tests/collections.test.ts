@@ -147,6 +147,8 @@ describe('registerCollections', () => {
             'voided_by',
             'voided_at',
             'sort_key',
+            'value_change',
+            'replaced_by',
         ])
     })
 

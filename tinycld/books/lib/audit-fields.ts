@@ -673,6 +673,7 @@ const AUDIT_FIELD_MAPS = {
         bin: relation('Bin location', 'books_bins'),
         quantity: text('Quantity change'),
         value: money('Value change'),
+        value_given: bool('Value change typed'),
         // The server writes posted_value at the post.
         posted_value: money('Posted value'),
         position: internal('Position'),

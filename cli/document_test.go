@@ -67,6 +67,9 @@ func TestLoadDocumentsRefusesAMistake(t *testing.T) {
 		{"a position the caller could send", `"omit":["note","position"]`, `"omit":["note"]`, `omit must name "position"`},
 		{"a line field with no help", `{"name":"text","type":"string","help":"the text"}`, `{"name":"text","type":"string","help":""}`, "no help text"},
 		{"a line sort on an unknown field", `"sort":"position,id"`, `"sort":"rank"`, `sort names "rank"`},
+		{"a flag a caller could send", `"omit":["note","position"],`, `"omit":["note","position"],"flags":[{"field":"given","above0":["text"]}],`, `flag "given" is not in omit`},
+		{"a flag of no field", `"omit":["note","position"],`, `"omit":["note","position","given"],"flags":[{"field":"given","above0":[]}],`, `flag "given": above0 names no field`},
+		{"a flag of a field that is not a number", `"omit":["note","position"],`, `"omit":["note","position","given"],"flags":[{"field":"given","above0":["text"]}],`, `above0 names "text", which is not a number field`},
 		{"a line table with no fields", `"fields":[{"name":"text","type":"string","help":"the text"}]`, `"fields":[]`, "no fields"},
 	}
 	for _, tc := range cases {

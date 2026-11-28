@@ -54,8 +54,6 @@ const KINDS = documentsSchema
 
 type Kind = (typeof KINDS)[number]
 
-// The kind is the unit's work in progress: move it into the table when its part is built.
-const ADJUSTMENT_PENDING = "p7-inventory-adjust builds the inventory adjustment's screens"
 const NEVER_POSTS = 'it never posts, so no entry carries its doc type'
 const NOT_SENT =
     'Books sends only what a customer or a vendor receives: the sales documents and the purchase order'
@@ -175,7 +173,6 @@ const REGISTRIES: Registry[] = [
         has: kind => NEW_ACTIONS.some(action => action.href === newHrefOf(kind)),
         excluded: {
             write_off: "it is made from an invoice's Write off action, never from New",
-            inventory_adjustment: ADJUSTMENT_PENDING,
         },
     },
     {

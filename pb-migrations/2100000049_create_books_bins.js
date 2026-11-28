@@ -17,9 +17,11 @@
 //
 // PRODUCTS gain default_bin (the bin a stock move that names none goes to) and
 // low_stock (server-written: reorder point above 0 and quantity on hand at or
-// below it). ADJUSTMENT LINES gain bin and posted_value (the sum of the values of
+// below it). ADJUSTMENT LINES gain bin, posted_value (the sum of the values of
 // the line's stock moves, written at the post and kept by a void; the create and
-// update rules keep it unset). ADJUSTMENTS gain value_change (the sum of
+// update rules keep it unset) and value_given (the writer's: true when the line's
+// value was typed, so an increase at a typed 0 comes in at 0, not at the last
+// cost). ADJUSTMENTS gain value_change (the sum of
 // the values of its stock moves, written at the post), replaces (the posted
 // adjustment a correction replaces, set at create only) and replaced_by (written
 // by the server); the create and update rules are set again with those server
@@ -183,6 +185,7 @@ migrate(
         lines.fields.add(
             new NumberField({ name: 'posted_value', onlyInt: true, min: -MAX_STORED, max: MAX_STORED })
         )
+        lines.fields.add(new BoolField({ name: 'value_given' }))
         lines.createRule = `${WRITE} && ${unset(...LINE_SERVER_FIELDS)}`
         lines.updateRule = `${WRITE} && ${unset(...LINE_SERVER_FIELDS)}`
         app.save(lines)
@@ -243,6 +246,7 @@ migrate(
         const lines = app.findCollectionByNameOrId('books_inventory_adjustment_lines')
         lines.createRule = WRITE
         lines.updateRule = WRITE
+        lines.fields.removeByName('value_given')
         lines.fields.removeByName('posted_value')
         lines.fields.removeByName('bin')
         app.save(lines)

@@ -160,6 +160,7 @@ func rowUpdate(table *lineTable, position int, row map[string]any) map[string]an
 		}
 		body[f.Name] = row[f.Name]
 	}
+	table.setFlags(body, row)
 	return body
 }
 

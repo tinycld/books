@@ -63,13 +63,11 @@ func loadRegistryDocuments(t *testing.T) []registryDocument {
 }
 
 const (
-	// The kind is the unit's work in progress: move it into the table when its part is built.
-	adjustmentPending = "p7-inventory-adjust builds the inventory adjustment's screens"
-	neverPosts        = "it never posts, so no entry carries its doc type"
-	entryIsDocument   = "the entry is the document: entryHref opens entries/ or transfers/ itself"
-	labelledByOrigin  = "an entry made by hand is labelled by its origin (Journal entry)"
-	notSent           = "Books sends only what a customer or a vendor receives: the sales documents and the purchase order"
-	noHeaderSource    = "no report source reads its header: reports read its posted entry (books.journal_lines, the receivable and payable items)"
+	neverPosts       = "it never posts, so no entry carries its doc type"
+	entryIsDocument  = "the entry is the document: entryHref opens entries/ or transfers/ itself"
+	labelledByOrigin = "an entry made by hand is labelled by its origin (Journal entry)"
+	notSent          = "Books sends only what a customer or a vendor receives: the sales documents and the purchase order"
+	noHeaderSource   = "no report source reads its header: reports read its posted entry (books.journal_lines, the receivable and payable items)"
 )
 
 type kindRegistry struct {

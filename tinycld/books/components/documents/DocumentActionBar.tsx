@@ -35,6 +35,9 @@ export interface DocumentActionBarProps {
     onDeleteDraft: () => void
     // More rows after Delete draft (Download PDF, on a kind with a PDF).
     moreItems?: DocumentMoreItem[]
+    // A phone puts Save draft in More too, before Post & new (an inventory adjustment's
+    // phone bar is Cancel, Post and More); its key is then registered by the screen.
+    savesDraftInMore?: boolean
     scopeOwner: ScopeOwner
 }
 
@@ -247,9 +250,11 @@ export function DocumentActionBar({
     onPostAndSend,
     onDeleteDraft,
     moreItems = [],
+    savesDraftInMore = false,
     scopeOwner,
 }: DocumentActionBarProps) {
     const writeState = useServerActionState({ isDisabled: isSaving })
+    // In Tab order, so on a phone Save draft and Post & new lead More in this order.
     const actions: DocumentBarAction[] = [
         { id: 'cancel', label: 'Cancel', keys: FORM_KEYS.cancel, onPress: onCancel },
         {
@@ -258,6 +263,7 @@ export function DocumentActionBar({
             keys: FORM_KEYS.saveDraft,
             onPress: onSaveDraft,
             isServerAction: true,
+            wideOnly: savesDraftInMore,
         },
         {
             id: 'post',

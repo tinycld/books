@@ -110,6 +110,42 @@ describe('New section', () => {
         ])
     })
 
+    // Inventory adjustment spec §2: the Other group draws Inventory adjustment right after
+    // Product or service, and opens the adjustment's new form.
+    it('draws Inventory adjustment right after Product or service and opens books/inventory-adjustments/new', async () => {
+        seedSidebar({ level: 'bookkeeper' })
+        useBooksUIStore.setState({ isNewOpen: true })
+        const { container } = renderSidebar()
+        await waitFor(() =>
+            expect(byTestId(container, 'books-sidebar-new-inventory-adjustment')).not.toBeNull()
+        )
+
+        const other = idsWith(container, 'books-sidebar-new-').filter(id =>
+            ['deposit', 'product', 'inventory-adjustment'].some(
+                key => id === `books-sidebar-new-${key}`
+            )
+        )
+        expect(other).toEqual([
+            'books-sidebar-new-deposit',
+            'books-sidebar-new-product',
+            'books-sidebar-new-inventory-adjustment',
+        ])
+        const adjustment = byTestId(
+            container,
+            'books-sidebar-new-inventory-adjustment'
+        ) as HTMLElement
+        expect(adjustment.textContent).toBe('Inventory adjustment')
+        expect((adjustment.parentElement as HTMLElement).getAttribute('testid')).toBe(
+            'books-sidebar-new-group-other'
+        )
+
+        fireEvent.click(adjustment)
+
+        expect(vi.mocked(router.push).mock.calls.map(call => call[0])).toEqual([
+            '/a/books/inventory-adjustments/new',
+        ])
+    })
+
     it('opens the form of a pressed action', async () => {
         seedSidebar({ level: 'bookkeeper' })
         useBooksUIStore.setState({ isNewOpen: true })

@@ -114,6 +114,52 @@ type lineTable struct {
 	// keeps a stored row the input repeats at the same place, and removes and
 	// creates again every other one.
 	NoUpdate bool `json:"noUpdate"`
+	// Flags names the fields the CLI sets on each row it creates or updates,
+	// from the row's other values. A caller never sends them, so each is in
+	// omit (the `value_given` of an inventory adjustment line).
+	Flags []rowFlag `json:"flags"`
+}
+
+// rowFlag is a bool field the CLI sets on a row: true when each field of
+// Above0 is above 0, else false. An inventory adjustment line's `value_given`
+// is true for an increase with a value: the server takes 0 or no value as the
+// last known cost only while it is false.
+type rowFlag struct {
+	Field  string   `json:"field"`
+	Above0 []string `json:"above0"`
+}
+
+// value is the flag of a row: whether each of its fields is above 0. A field
+// the row leaves out, or sends as null, is not.
+func (f rowFlag) value(row map[string]any) bool {
+	for _, name := range f.Above0 {
+		if !above0(row[name]) {
+			return false
+		}
+	}
+	return true
+}
+
+// above0 reports whether a value of an input row is a number above 0. Input
+// numbers stay json.Number (parseObject).
+func above0(value any) bool {
+	switch n := value.(type) {
+	case json.Number:
+		v, err := n.Float64()
+		return err == nil && v > 0
+	case float64:
+		return n > 0
+	default:
+		return false
+	}
+}
+
+// setFlags sets each flag of the table on a row body that a create or an
+// update sends.
+func (t *lineTable) setFlags(body, row map[string]any) {
+	for _, flag := range t.Flags {
+		body[flag.Field] = flag.value(row)
+	}
 }
 
 // maxRows is the most rows of the table one document may have.
@@ -723,6 +769,20 @@ func checkLineTable(table *lineTable, names map[string]bool) error {
 		for _, value := range rule.Is {
 			if !slices.Contains(when.Enum, value) {
 				return fmt.Errorf("computed %q: %q is not a value of %s", rule.Field, value, rule.When)
+			}
+		}
+	}
+	for _, flag := range table.Flags {
+		// The CLI sets it, so a caller never sends it.
+		if flag.Field == "" || !slices.Contains(table.Omit, flag.Field) {
+			return fmt.Errorf("flag %q is not in omit: the CLI sets it", flag.Field)
+		}
+		if len(flag.Above0) == 0 {
+			return fmt.Errorf("flag %q: above0 names no field", flag.Field)
+		}
+		for _, name := range flag.Above0 {
+			if f := res.field(name); f == nil || (f.Type != typeNumber && f.Type != typeInteger) {
+				return fmt.Errorf("flag %q: above0 names %q, which is not a number field", flag.Field, name)
 			}
 		}
 	}

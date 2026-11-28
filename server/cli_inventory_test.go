@@ -122,10 +122,10 @@ func TestCLIInventory_ATokenAddsPostsAndVoidsAnAdjustment(t *testing.T) {
 	// `add --post`: the header, the lines and the post in one batch. A line
 	// that takes stock out and states a value refuses the whole batch.
 	batch(env.reader, header).requireStatus(t, http.StatusForbidden)
-	batch(env.writer, header, row(0, `"quantity":-2,"value":-100`), post).
+	batch(env.writer, header, row(0, `"quantity":-2,"value":-100,"value_given":false`), post).
 		requireStatus(t, http.StatusBadRequest)
 	env.call(t, env.writer, http.MethodGet, one, "").requireStatus(t, http.StatusNotFound)
-	batch(env.writer, header, row(0, `"quantity":10,"value":5000`), row(1, `"quantity":-2.5`), post).requireStatus(t, http.StatusOK)
+	batch(env.writer, header, row(0, `"quantity":10,"value":5000,"value_given":true`), row(1, `"quantity":-2.5,"value_given":false`), post).requireStatus(t, http.StatusOK)
 	posted := env.call(t, env.writer, http.MethodGet, one, "")
 	posted.requireStatus(t, http.StatusOK)
 	if got := posted.json(t); got["status"] != "posted" || got["number"] != "IA-1" || got["entry"] == "" || got["account"] == "" {
@@ -193,11 +193,11 @@ func TestCLIInventory_ATokenChangesTheLinesOfADraft(t *testing.T) {
 	}
 	batch(
 		cliOp("POST", inventoryAdjustmentsCollection, "", `{"date":"2026-09-05","id":"`+id+`","kind":"manual","status":"draft"}`),
-		cliOp("POST", lines, "", fmt.Sprintf(`{"adjustment":%q,"id":"cliadjline00001","position":0,"product":%q,"quantity":10,"value":5000}`, id, widget.Id)),
+		cliOp("POST", lines, "", fmt.Sprintf(`{"adjustment":%q,"id":"cliadjline00001","position":0,"product":%q,"quantity":10,"value":5000,"value_given":true}`, id, widget.Id)),
 	).requireStatus(t, http.StatusOK)
 	batch(
-		rowUpdateOp(lines, "cliadjline00001", fmt.Sprintf(`"position":0,"product":%q,"quantity":12,"value":6000`, widget.Id)),
-		cliOp("POST", lines, "", fmt.Sprintf(`{"adjustment":%q,"id":"cliadjline00002","position":1,"product":%q,"value":-300}`, id, widget.Id)),
+		rowUpdateOp(lines, "cliadjline00001", fmt.Sprintf(`"position":0,"product":%q,"quantity":12,"value":6000,"value_given":true`, widget.Id)),
+		cliOp("POST", lines, "", fmt.Sprintf(`{"adjustment":%q,"id":"cliadjline00002","position":1,"product":%q,"value":-300,"value_given":false}`, id, widget.Id)),
 		cliOp("PATCH", inventoryAdjustmentsCollection, id, `{"memo":"stock count"}`),
 	).requireStatus(t, http.StatusOK)
 	rows := env.list(t, lines, `adjustment = "`+id+`"`, "position,id").items(t)

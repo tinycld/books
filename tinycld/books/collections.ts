@@ -1147,6 +1147,9 @@ export function registerCollections(
             'voided_by',
             'voided_at',
             'sort_key',
+            // The post writes these (the create rule refuses them in a request).
+            'value_change',
+            'replaced_by',
         ] as const,
         ...onDemand,
         collectionOptions: indexed,

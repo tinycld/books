@@ -30,7 +30,7 @@ export function lineHandlers(lineFocus: DepositLineFocus, id: string, index: num
     return {
         onFocus: () => lineFocus.onFocus(id),
         onBlur: () => lineFocus.onBlur(id),
-        partyRef: lineFocus.partyRef(id),
+        partyRef: lineFocus.triggerRef(id),
         onNext: () => lineFocus.next(index),
         onRemove: () => lineFocus.removeAt(index),
     }

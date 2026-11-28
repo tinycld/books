@@ -453,8 +453,10 @@ func adjustmentStockInputs(tx core.App, r *core.Record, lines []*core.Record, ac
 		if kind == stockKindOpening && qty < 0 {
 			return nil, refuse(msgAdjustmentLineFault, i+1, msgAdjustmentOpeningNegative)
 		}
-		// An opening quantity comes in at the value the item gives, 0 too.
-		if qty == 0 || value > 0 || kind == stockKindOpening {
+		// An opening quantity comes in at the value the item gives, 0 too. An
+		// increase comes in at its value when the writer typed one (value_given,
+		// 0 too: free stock), else at the last cost.
+		if qty == 0 || value > 0 || (qty > 0 && l.GetBool("value_given")) || kind == stockKindOpening {
 			in.Given, in.Value = true, value
 		}
 		inputs = append(inputs, in)

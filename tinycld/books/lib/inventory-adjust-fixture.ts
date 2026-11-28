@@ -618,7 +618,8 @@ export type AdjustmentRecord = Omit<BooksInventoryAdjustments, 'account' | 'sort
 }
 
 // `posted_value` is what Books posted for the line (the sum of its stock moves' values),
-// written at the post; 0 on a draft.
+// written at the post; 0 on a draft. `value_given` is true when the line's value was
+// typed: an increase with false comes in at the last cost.
 export type AdjustmentLineRecord = BooksInventoryAdjustmentLines
 
 type AdjustmentSeed = Pick<AdjustmentRecord, 'id' | 'status' | 'number' | 'date'> &
@@ -725,6 +726,7 @@ function line(seed: LineSeed): AdjustmentLineRecord {
     return {
         quantity: 0,
         value: 0,
+        value_given: false,
         bin: NO_BIN,
         posted_value: 0,
         created: STAMP,
@@ -771,6 +773,7 @@ export const ADJUSTMENT_LINES: AdjustmentLineRecord[] = [
         position: 2,
         quantity: 2,
         value: 13_600,
+        value_given: true,
         bin: BIN_IDS.backRoom,
         posted_value: 13_600,
     }),

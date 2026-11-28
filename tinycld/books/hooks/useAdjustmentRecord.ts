@@ -55,6 +55,8 @@ export function useAdjustmentRecord(id: string) {
                     kind: adjustment.kind,
                     number: adjustment.number,
                     date: adjustment.date,
+                    // The form opens a draft on its account id.
+                    account: adjustment.account,
                     memo: adjustment.memo,
                     source: adjustment.source,
                     document: adjustment.document,
@@ -118,6 +120,7 @@ export function useAdjustmentRecord(id: string) {
                     product: line.product,
                     quantity: line.quantity,
                     value: line.value,
+                    value_given: line.value_given,
                     posted_value: line.posted_value,
                     bin: line.bin,
                     productName: materialize(

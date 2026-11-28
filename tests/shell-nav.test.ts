@@ -100,13 +100,26 @@ describe('registries', () => {
         })
     })
 
-    it('the New menu Other column lists Journal entry, then Transfer, then Bank deposit, then Product or service', () => {
+    it('NEW_ACTIONS has an available Inventory adjustment action in the other column, after Product or service', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'inventory_adjustment')).toEqual({
+            id: 'inventory_adjustment',
+            label: 'Inventory adjustment',
+            href: 'books/inventory-adjustments/new',
+            column: 'other',
+            available: true,
+        })
+        const ids = NEW_ACTIONS.map(a => a.id)
+        expect(ids.indexOf('inventory_adjustment')).toBe(ids.indexOf('product') + 1)
+    })
+
+    it('the New menu Other column lists Journal entry, then Transfer, then Bank deposit, then Product or service, then Inventory adjustment', () => {
         const other = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Other')
         expect(other?.actions.map(a => a.label)).toEqual([
             'Journal entry',
             'Transfer',
             'Bank deposit',
             'Product or service',
+            'Inventory adjustment',
         ])
     })
 

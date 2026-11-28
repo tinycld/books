@@ -167,6 +167,13 @@ export const NEW_ACTIONS: NewAction[] = [
         column: 'other',
         available: true,
     },
+    {
+        id: 'inventory_adjustment',
+        label: 'Inventory adjustment',
+        href: 'books/inventory-adjustments/new',
+        column: 'other',
+        available: true,
+    },
 ]
 
 // The label of an action in the sidebar: its New section and its filter results.

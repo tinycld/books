@@ -110,6 +110,22 @@ describe('shortcutRows', () => {
         expect(rows(list, false).map(row => row.label)).toEqual(['Customers'])
     })
 
+    // Inventory adjustment spec §2: a shortcut to the new adjustment form opens it, for a
+    // writer only.
+    it('draws a New inventory adjustment shortcut at its new route, and none for a reader', () => {
+        const list: Shortcut[] = [{ kind: 'new', ref: 'inventory_adjustment' }]
+        const drawn = rows(list)
+        expect(drawn.map(row => [row.label, row.href, row.key])).toEqual([
+            [
+                'New inventory adjustment',
+                '/a/books/inventory-adjustments/new',
+                'new:inventory_adjustment',
+            ],
+        ])
+        expect(drawn[0]?.testID).toBe('books-shortcut-new-inventory-adjustment')
+        expect(rows(list, false)).toEqual([])
+    })
+
     it('draws nothing for an empty list', () => {
         expect(rows([])).toEqual([])
     })
