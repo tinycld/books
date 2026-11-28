@@ -3,16 +3,21 @@ import type { FormHostDef } from '@tinycld/core/lib/forms/host'
 import { hideBuiltins, requireBuiltins } from './form-definition'
 import type { ProductType } from './product-types'
 
-// The built-ins only an Inventory item has (the server refuses them on another type).
+// The built-ins only an Inventory item has (the server refuses them on another type). The
+// form has no Quantity on hand row: the item page's figures show it.
 export const INVENTORY_BUILTINS = [
-    'quantity_on_hand',
     'asset_account',
     'preferred_vendor',
     'opening_quantity',
     'opening_value',
     'opening_date',
     'reorder_point',
+    'default_bin',
 ] as const
+
+// While the book has no bin location, no screen shows a bin field (inventory-adjust spec
+// §3.1), so Default bin hides.
+const NO_BINS_HIDDEN_BUILTINS: readonly string[] = ['default_bin']
 
 // Core form rules cannot test a custom built-in's value, so the form follows the
 // product type by hiding these built-ins in a definition copy (spec Q4). A bundle has
@@ -34,10 +39,6 @@ export const PRODUCT_HIDDEN_BUILTINS: Record<ProductType, readonly string[]> = {
         ...INVENTORY_BUILTINS,
     ],
 }
-
-// A new item has no stock yet: Books counts the quantity on hand from the posted
-// transactions, the opening stock among them.
-const NEW_HIDDEN_BUILTINS: readonly string[] = ['quantity_on_hand']
 
 // The account an Inventory item's purchases and sales cost go to is its cost of goods
 // sold account, held in `expense_account`.
@@ -93,22 +94,28 @@ export function productHostFor<H extends Pick<FormHostDef, 'builtin'>>(
     }
 }
 
+export type ProductFormBins = {
+    // False while the book has no bin location, or its read has not answered.
+    hasBins: boolean
+}
+
 /**
- * The definition the product form draws for a type, on a new product or an edited one.
- * The engine validates a save against the stored definition, so this changes what the
- * form shows only: the Income account required mark is display only, and the server's
- * "Choose an income account." is the check.
+ * The definition the product form draws for a type. A new product and an edited one show
+ * the same fields (`_mode` is kept for the callers that name it). The engine validates a
+ * save against the stored definition, so this changes what the form shows only: the
+ * Income account required mark is display only, and the server's "Choose an income
+ * account." is the check. Default bin hides while the book has no bin location.
  */
 export function productDefinitionFor(
     definition: FormDefinition,
     type: ProductType,
     host: Pick<FormHostDef, 'builtin'>,
-    mode: ProductFormMode
+    _mode: ProductFormMode,
+    bins: ProductFormBins = { hasBins: true }
 ): FormDefinition {
-    const hidden =
-        mode === 'new'
-            ? [...PRODUCT_HIDDEN_BUILTINS[type], ...NEW_HIDDEN_BUILTINS]
-            : PRODUCT_HIDDEN_BUILTINS[type]
+    const hidden = bins.hasBins
+        ? PRODUCT_HIDDEN_BUILTINS[type]
+        : [...PRODUCT_HIDDEN_BUILTINS[type], ...NO_BINS_HIDDEN_BUILTINS]
     const shown = requireBuiltins(
         hideBuiltins(definition, hidden, host),
         PRODUCT_REQUIRED_BUILTINS[type]

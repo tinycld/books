@@ -62,7 +62,6 @@ const BUILTINS = [
     ['vendor_part_no', 'Vendor part no.', 'text', false, undefined],
     ['sales_description', 'Sales description', 'textarea', false, undefined],
     ['items', 'Bundle items', 'table', false, undefined],
-    ['quantity_on_hand', 'Quantity on hand', 'custom', false, 'QuantityOnHandField'],
     ['price', 'Sales price', 'custom', false, 'MoneyField'],
     ['income_account', 'Income account', 'custom', false, 'IncomeAccountField'],
     ['taxable', 'Taxable', 'toggle', false, undefined],
@@ -76,6 +75,8 @@ const BUILTINS = [
     ['opening_value', 'Opening value', 'custom', false, 'MoneyField'],
     ['opening_date', 'Opening stock as of', 'custom', false, 'OpeningDateField'],
     ['reorder_point', 'Reorder point', 'custom', false, 'QuantityField'],
+    // inventory-adjust spec §3.7: Default bin after Reorder point on an Inventory item.
+    ['default_bin', 'Default bin', 'custom', false, 'DefaultBinField'],
 ] as const
 
 const HALF_WIDTH = [
@@ -88,6 +89,7 @@ const HALF_WIDTH = [
     'asset_account',
     'preferred_vendor',
     'reorder_point',
+    'default_bin',
 ]
 
 const THIRD_WIDTH = ['opening_quantity', 'opening_value', 'opening_date']
@@ -142,7 +144,6 @@ describe('books:product forms host', () => {
             'type',
             'name',
             'code',
-            'quantity_on_hand',
             'price',
             'income_account',
             'cost',
@@ -153,6 +154,7 @@ describe('books:product forms host', () => {
             'opening_value',
             'opening_date',
             'reorder_point',
+            'default_bin',
         ])
         expect(custom.map(b => b.chrome)).toEqual(custom.map(() => 'cell'))
     })
@@ -170,11 +172,18 @@ describe('books:product forms host', () => {
         expect(third).toEqual(THIRD_WIDTH)
     })
 
-    // A new item does not show the quantity on hand; a half-width neighbour would then
-    // take the next field into its row.
-    it('seeds the quantity on hand at full width', () => {
-        const definition = defaultDefinitionFor(parsedHost())
-        expect(definition.fields.find(f => f.key === 'quantity_on_hand')?.width).toBe('full')
+    // inventory-adjust spec §3.6 "Details tab": the read-only Quantity on hand row is gone,
+    // the item page's figures show it. The column stays in the host's column list.
+    it('has no Quantity on hand row, and keeps its column', () => {
+        const host = parsedHost()
+        expect(host.builtin.map(b => b.key)).not.toContain('quantity_on_hand')
+        expect(defaultDefinitionFor(host).fields.map(f => f.key)).not.toContain('quantity_on_hand')
+        expect(host.columns).toContain('quantity_on_hand')
+    })
+
+    it('seeds Default bin right after Reorder point', () => {
+        const keys = defaultDefinitionFor(parsedHost()).fields.map(f => f.key)
+        expect(keys.indexOf('default_bin')).toBe(keys.indexOf('reorder_point') + 1)
     })
 
     it('seeds the Taxable toggle, the opening date and the reorder point with their help text', () => {
@@ -220,11 +229,11 @@ describe('books:product forms host', () => {
                 'MoneyField',
                 'IncomeAccountField',
                 'ExpenseAccountField',
-                'QuantityOnHandField',
                 'AssetAccountField',
                 'PreferredVendorField',
                 'QuantityField',
                 'OpeningDateField',
+                'DefaultBinField',
             ])
         )
         for (const name of named) {
@@ -282,16 +291,16 @@ describe('books:product forms host', () => {
         expect(schemaFor(fine).safeParse(fine).success).toBe(true)
     })
 
-    // The form never writes the quantity on hand (Books counts it), so a new product
-    // has no starting value for it. default_bin is a column the client writes but has no
-    // built-in yet: the Default bin built-in comes with the item page's Details tab (a
-    // later checkpoint), which then removes the extra key here.
-    it('starts a new product with every built-in other than the bundle items and the quantity on hand, plus the column-only default bin', () => {
+    // The form never writes the quantity on hand (Books counts it) and has no row for it,
+    // so a new product starts from every built-in but the bundle items, Default bin
+    // ('' is No bin) among them.
+    it('starts a new product with every built-in other than the bundle items', () => {
         const keys = parsedHost()
             .builtin.map(b => b.key)
-            .filter(key => key !== 'items' && key !== 'quantity_on_hand')
-        expect(keys).not.toContain('default_bin')
-        expect(Object.keys(EMPTY_PRODUCT_FIELDS).sort()).toEqual([...keys, 'default_bin'].sort())
+            .filter(key => key !== 'items')
+        expect(keys).toContain('default_bin')
+        expect(Object.keys(EMPTY_PRODUCT_FIELDS).sort()).toEqual([...keys].sort())
+        expect(EMPTY_PRODUCT_FIELDS.default_bin).toBe('')
     })
 
     it('keeps the customer and vendor hosts', () => {

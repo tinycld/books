@@ -1,3 +1,4 @@
+import type { BooksStockMoves } from '../types'
 import { DOCUMENT_SCREENS } from './document-screens'
 import { DOC_TYPE_LABELS } from './register'
 
@@ -15,6 +16,16 @@ function docTypeOf(source: string): string {
 export function stockSourceWord(source: string): string {
     const docType = docTypeOf(source)
     return Object.hasOwn(DOC_TYPE_LABELS, docType) ? DOC_TYPE_LABELS[docType] : ''
+}
+
+// The Transaction cell of a move: "Invoice 1042", "Inventory adjustment 12"; the word
+// alone when the document has no number; "Opening stock" for an item's opening move.
+export function moveTransactionText(
+    move: Pick<BooksStockMoves, 'kind' | 'source' | 'document_number'>
+): string {
+    if (move.kind === 'opening') return 'Opening stock'
+    const word = stockSourceWord(move.source)
+    return move.document_number ? `${word} ${move.document_number}` : word
 }
 
 // `books/bills`: the route base of the source's document screen (the `routeBase` that

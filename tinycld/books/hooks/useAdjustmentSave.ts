@@ -26,10 +26,14 @@ import type { AdjustmentForm } from './useAdjustmentForm'
 import { useAdjustmentDelete } from './useAdjustmentReadActions'
 import { useFormLeaveGuard } from './useFormLeaveGuard'
 import { useRecordNavigation } from './useRecordNavigation'
+import { usePopToRecordPageBelow } from './useStackScreens'
 
 export type AdjustmentSaveMode = 'draft' | 'post' | 'post-new'
 
 const LOG_CONTEXT = 'books.inventory-adjustment'
+
+// The Books root route of the products list and an item's page (`products/[id]`).
+const PRODUCTS_ROUTE = 'products'
 
 // A line row as the save writes it and as the plan compares it.
 type LineRow = {
@@ -184,12 +188,15 @@ function useAdjustmentWrites() {
  * post voids the original. A post that worked clears the store's `shownDraft` before the
  * hold ends, so the own post is not a stale draft. Delete draft deletes a saved draft
  * (useAdjustmentDelete) and opens the list. After the user left, a refusal is logged.
+ * Cancel and Discard (`leave`) go back to the product record right below the form (any
+ * product's page or panel, as an item page's Adjust stock leaves it), else open the list.
  */
 export function useAdjustmentSave(input: AdjustmentSaveInput) {
     const { adjustmentForm, adjustmentId, storedLines, holdsHandOff, replaces = '' } = input
     const isCorrection = replaces !== ''
     const orgHref = useOrgHref()
     const { leave: leaveToList } = useRecordNavigation(ADJUSTMENTS_PATH)
+    const popToItemPage = usePopToRecordPageBelow(PRODUCTS_ROUTE)
     const { form } = adjustmentForm
     // A handed-off form starts from the submitted values, so react-hook-form counts none of
     // them as edits. A refusal at a line write left the lines after it unstored (the header
@@ -272,9 +279,11 @@ export function useAdjustmentSave(input: AdjustmentSaveInput) {
 
     // `left`: the user asked to leave while a write runs, so the write neither moves nor
     // shows its refusal. Each write clears it when it starts.
+    // With any product record right below the form (an item page's Adjust stock opens it
+    // there), it goes back to that record; else it opens the list.
     const leave = () => {
         left.current = true
-        leaveToList()
+        if (!popToItemPage()) leaveToList()
     }
 
     const replaceWith = (route: RecordRoute) => router.replace(orgHref(route.path, route.params))

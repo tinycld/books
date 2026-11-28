@@ -5,6 +5,7 @@ import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { Text, View } from 'react-native'
+import { BinPicker } from '../components/bins/BinPicker'
 import { HostQuantityInput } from '../components/forms/HostQuantityInput'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
 import { useFormAccounts } from '../hooks/useFormAccounts'
@@ -17,7 +18,6 @@ import {
 } from '../lib/inventory-account-options'
 import { NO_PREFERRED_VENDOR, preferredVendorLabel } from '../lib/preferred-vendor'
 import { ASSET_ACCOUNT_FIXED } from '../lib/product-messages'
-import { quantityOnHandText } from '../lib/quantity-input'
 import { HostSelect } from './account-fields'
 import { DayField, useVendorOptions, vendorPickerProps } from './document-fields'
 
@@ -201,15 +201,20 @@ export function QuantityField({ fieldKey, label, value, onChange, disabled }: Bu
     )
 }
 
-// Quantity on hand: Books counts it from the posted transactions, so it is text, never
-// an input, and the form never writes it. The engine gives it the stored item's value,
-// which follows the item while the form is open (tests/e2e/inventory.spec.ts, "shows its
-// stock live").
-export function QuantityOnHandField({ fieldKey, value }: BuiltinFieldProps) {
+/**
+ * Default bin (inventory-adjust spec §3.7): a picker of the active bin locations and
+ * "No bin" ('') over BinPicker, which shows a stored bin made inactive since with
+ * "(inactive)", and the load error with Retry in its menu.
+ */
+export function DefaultBinField({ fieldKey, label, value, onChange, disabled }: BuiltinFieldProps) {
     return (
-        <Text testID={`form-input-${fieldKey}`} className="py-2 text-base text-foreground">
-            {quantityOnHandText(value)}
-        </Text>
+        <BinPicker
+            value={textOf(value)}
+            onChange={onChange}
+            testID={`form-input-${fieldKey}`}
+            disabled={disabled}
+            label={label}
+        />
     )
 }
 

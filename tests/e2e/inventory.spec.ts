@@ -13,6 +13,7 @@ import {
     postBill,
     SETTINGS_ROW_PATH,
 } from './bill-helpers'
+import { itemPage, openItemDetails } from './inventory-adjust-helpers'
 import {
     INVOICE_URL,
     lineCellTestId,
@@ -45,9 +46,10 @@ import { visibleTestId } from './sales-receipt-helpers'
 // Settings while no inventory transaction has posted; an Inventory item is made on the
 // Product/Service form, received on a bill, sold on an invoice, corrected, sold below zero
 // with the form's warning, and sold as a part of a bundle; then Settings shows the costing
-// method as locked. A second item is made with opening stock typed into the form: its
-// opening entry posts, offers no Edit or Void, and its form keeps the asset account and
-// shows the quantity on hand live.
+// method as locked. The quantity on hand is read from the item page's On hand figure; the
+// saved item's fields from its Details tab. A second item is made with opening stock typed
+// into the form: its opening entry posts, offers no Edit or Void, its form keeps the asset
+// account, and its page shows the quantity on hand live.
 //
 // Phones: below the mobile breakpoint core's TableField draws each line as a card, but a
 // card cell renders the same host component as a grid cell (LineProductCell, with its
@@ -68,7 +70,8 @@ import { visibleTestId } from './sales-receipt-helpers'
 // and changes it; on a database an earlier run locked, that test checks the locked text.
 //
 // What this does NOT cover: the server's refusal of a change after the lock (the select is
-// gone then; the Go tests cover it), and an inventory adjustment, which has no screen.
+// gone then; the Go tests cover it), and an inventory adjustment (the
+// inventory-adjust-*.spec.ts files cover it).
 
 const SUMMIT = 'Summit IT Services'
 
@@ -80,6 +83,9 @@ function seededCustomer() {
 
 const HARBORVIEW = seededCustomer()
 const LOCKED = 'The costing method cannot change after the first inventory transaction posts.'
+// The true minus sign of a quantity below zero (lib/money's MINUS; that module loads the
+// app logger, which Playwright cannot load).
+const MINUS = '−'
 
 // Unique to the run, and made when the file loads: test.info() has no test yet, so the
 // names do not come from uniqueName. A worker loads the file once for the serial group.
@@ -137,17 +143,29 @@ function entryView(page: Page) {
     return page.getByTestId('entry-read-only').filter({ visible: true })
 }
 
-// Opens the form of the item `name`. The products list opens from the Lists hub: a
-// document or journal entry screen has no way to it of its own.
+// Opens the page of the item `name` (an Inventory item opens its item page). The products
+// list opens from the Lists hub: a document or journal entry screen has no way to it of its
+// own.
 async function openItem(page: Page, name: string) {
     await visibleTestId(page, 'books-nav-lists').click()
     await openProduct(page, name)
+    await expect(itemPage(page)).toBeVisible()
 }
 
-// Opens the item's form and checks the quantity on hand it shows.
-async function expectOnHand(page: Page, quantity: string) {
+// The On hand figure of the shown item page.
+function onHandFigure(page: Page) {
+    return visibleTestId(page, 'item-figure-on-hand')
+}
+
+// The figure writes a quantity below zero with a true minus sign (quantityText).
+function onHandText(quantity: number) {
+    return quantity < 0 ? `${MINUS}${Math.abs(quantity)}` : String(quantity)
+}
+
+// Opens the item's page and checks the quantity on hand its On hand figure shows.
+async function expectOnHand(page: Page, quantity: number) {
     await openItem(page, ITEM)
-    await expect(field(page, 'quantity_on_hand')).toHaveText(quantity)
+    await expect(onHandFigure(page)).toHaveText(onHandText(quantity))
 }
 
 // A new invoice for the seeded customer with the item on line 1; returns the line's row id.
@@ -241,7 +259,7 @@ test.describe
             ]) {
                 await expect(page.getByTestId(`form-field-${key}`)).toBeVisible()
             }
-            // A new item has no quantity on hand to show yet.
+            // The form has no Quantity on hand row: the item page's On hand figure shows it.
             await expect(page.getByTestId('form-field-quantity_on_hand')).toHaveCount(0)
 
             await field(page, 'name').fill(ITEM)
@@ -252,10 +270,12 @@ test.describe
             await page.getByTestId('product-save').click()
             await expectSavedToList(page)
 
-            await expectOnHand(page, '0')
+            await expectOnHand(page, 0)
             // The seeded Inventory item made the server add 5000 Cost of goods sold to the e2e
             // chart, so the new form names it as the expense default and the save keeps it.
-            // The saved item's select names it by number and name, as the entry lines do.
+            // The saved item's select (its page's Details tab) names it by number and name, as
+            // the entry lines do.
+            await openItemDetails(page)
             const cogsSelect = field(page, 'expense_account')
             await expect(cogsSelect).toHaveText(/^\d+ \S/)
             cogsAccount = (await cogsSelect.innerText()).trim()
@@ -297,7 +317,7 @@ test.describe
                     }
                 })
                 .toEqual({ count: 2, assetDebit: money(10_000), payableCredit: money(10_000) })
-            await expectOnHand(page, '5')
+            await expectOnHand(page, 5)
 
             // Sell 2: the stock covers the sale, so the line shows no warning.
             saleMemo = uniqueMemo('Stock sale')
@@ -317,7 +337,7 @@ test.describe
                     return { cogsDebit: cogs?.debit, assetCredit: asset?.credit }
                 })
                 .toEqual({ cogsDebit: money(4_000), assetCredit: money(4_000) })
-            await expectOnHand(page, '3')
+            await expectOnHand(page, 3)
         })
 
         test('a correction of the sale counts the stock the sale already took', async ({
@@ -355,7 +375,7 @@ test.describe
                     return { cogsDebit: cogs?.debit, assetCredit: asset?.credit }
                 })
                 .toEqual({ cogsDebit: money(6_000), assetCredit: money(6_000) })
-            await expectOnHand(page, '2')
+            await expectOnHand(page, 2)
         })
 
         test('a sale of more than the quantity on hand warns and still posts', async ({ page }) => {
@@ -383,7 +403,7 @@ test.describe
 
             // The warning does not block Post.
             await postInvoice(page)
-            await expectOnHand(page, '-1')
+            await expectOnHand(page, -1)
         })
 
         test('a bundle with the item takes the stock of its part', async ({ page }) => {
@@ -410,7 +430,7 @@ test.describe
             await page.getByTestId('form-input-memo').fill(uniqueMemo('Stock kit sale'))
             await postInvoice(page)
 
-            await expectOnHand(page, '-3')
+            await expectOnHand(page, -3)
         })
 
         test('Settings shows the costing method as locked', async ({ page }) => {
@@ -450,7 +470,8 @@ test.describe
             await expectSavedToList(page)
 
             await openItem(page, OPENING_ITEM)
-            await expect(field(page, 'quantity_on_hand')).toHaveText('12')
+            await expect(onHandFigure(page)).toHaveText('12')
+            await openItemDetails(page)
             await expect(field(page, 'reorder_point')).toHaveValue('1250')
             // The item has stock moves, so the server keeps its asset account: the form
             // offers no change and says why.
@@ -469,7 +490,18 @@ test.describe
             await expect(page.getByTestId('entries-menu-open')).toBeVisible()
             await expect(page.getByTestId('entries-menu-edit')).toHaveCount(0)
             await expect(page.getByTestId('entries-menu-void')).toHaveCount(0)
+            // Open shows the opening adjustment Books made for the item (entry_routes.json
+            // routes an inventory_adjustment entry to its read view): its notice names the
+            // item, and it offers no Edit, Void or Copy. Its entry link opens the entry.
             await page.getByTestId('entries-menu-open').click()
+            await expect(visibleTestId(page, 'inventory-adjustment-read')).toBeVisible()
+            await expect(visibleTestId(page, 'adjustment-books-made')).toContainText(
+                `Books made this adjustment for the opening stock of ${OPENING_ITEM}.`
+            )
+            await expect(visibleTestId(page, 'inventory-adjustment-read-edit')).toHaveCount(0)
+            await expect(visibleTestId(page, 'inventory-adjustment-read-void')).toHaveCount(0)
+            await expect(visibleTestId(page, 'inventory-adjustment-read-copy')).toHaveCount(0)
+            await visibleTestId(page, 'adjustment-entry').click()
             await expect(entryView(page)).toBeVisible()
             await expect
                 .poll(async () => {
@@ -488,17 +520,20 @@ test.describe
             await expect(entryView(page).getByTestId('entry-change-note')).toBeVisible()
             await page.goBack()
 
-            // Quantity on hand follows the stored item while its form is open: another tab
-            // changes the opening quantity, and this form shows the new count.
+            // Quantity on hand follows the stored item while its page is open: another tab
+            // changes the opening quantity on the item's Details tab, and this page's On hand
+            // figure shows the new count. An edit stays on the item page, so the other tab's
+            // save has finished when its save bar hides.
             await openItem(page, OPENING_ITEM)
-            await expect(field(page, 'quantity_on_hand')).toHaveText('12')
+            await expect(onHandFigure(page)).toHaveText('12')
             const other = await openOtherBooksPage(page, ['products'])
             await openProduct(other, OPENING_ITEM)
+            await openItemDetails(other)
             await field(other, 'opening_quantity').fill('15')
             await field(other, 'opening_quantity').press('Tab')
             await other.getByTestId('product-save').click()
-            await expectSavedToList(other)
+            await expect(other.getByTestId('product-save-bar')).toBeHidden()
             await other.close()
-            await expect(field(page, 'quantity_on_hand')).toHaveText('15')
+            await expect(onHandFigure(page)).toHaveText('15')
         })
     })

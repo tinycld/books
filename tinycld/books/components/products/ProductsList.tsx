@@ -7,6 +7,7 @@ import { type ProductRecord, useProductsQuery } from '../../hooks/useProductsQue
 import { useRecordList } from '../../hooks/useRecordList'
 import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
 import { useShippedReportHref } from '../../hooks/useShippedReportHref'
+import { type ListLayout, RECORD_LIST_WIDTH } from '../../lib/detail-surface'
 import { productListCopy } from '../../lib/product-display'
 import {
     PRODUCT_COLUMNS,
@@ -48,7 +49,16 @@ const productName = (product: ProductRecord) => product.name
 const productHeightOf = (product: ProductListFields, fontScale: number) =>
     productCardHeight(product, fontScale)
 
-function ProductTableHeader({ testID }: { testID: string }) {
+const NAME_ONLY_CELL = { flex: 1, minWidth: 0 } as const
+
+function ProductTableHeader({ testID, isNameOnly }: { testID: string; isNameOnly: boolean }) {
+    if (isNameOnly) {
+        return (
+            <ListHeaderRow testID={testID}>
+                <ListHeaderCell label="Name" style={NAME_ONLY_CELL} />
+            </ListHeaderRow>
+        )
+    }
     return (
         <ListHeaderRow testID={testID}>
             <ListHeaderCell label="Code" style={PRODUCT_COLUMNS.code} />
@@ -62,8 +72,11 @@ function ProductTableHeader({ testID }: { testID: string }) {
 }
 
 // The Products and services list. The open product (`openId`, from the URL) is marked
-// on the panel surface, where the list stays in view beside it.
-export function ProductsList({ openId }: { openId: string }) {
+// on the panel surface, where the list stays in view beside it; beside an Inventory
+// item's page it shows the names only (`layout`).
+export function ProductsList({ openId, layout }: { openId: string; layout: ListLayout }) {
+    const isNameOnly = layout === 'names'
+    const tableMinWidth = isNameOnly ? RECORD_LIST_WIDTH : PRODUCT_TABLE_MIN_WIDTH
     const navigation = useProductNavigation()
     const { canWrite } = useBooksAccess()
     // The one actions instance lives here, so the list's banner and the Delete product
@@ -80,6 +93,8 @@ export function ProductsList({ openId }: { openId: string }) {
         titleOf: productName,
         menu: PRODUCT_MENU,
     })
+    // A name-only row draws no menu, so it asks for none.
+    const menuOf = (product: ProductRecord) => (isNameOnly ? null : menus.menuFor(product))
     const filters = useListFilters()
     const source = useProductsQuery(filters.listFilters)
     const list = useRecordList(filters, source)
@@ -111,9 +126,9 @@ export function ProductsList({ openId }: { openId: string }) {
     const renderTable = (selectedId: string) => (
         <ListTable<ProductRecord>
             testID="products-table"
-            minWidth={PRODUCT_TABLE_MIN_WIDTH}
+            minWidth={tableMinWidth}
             rowHeight={PRODUCT_ROW_HEIGHT}
-            header={<ProductTableHeader testID="products-header" />}
+            header={<ProductTableHeader testID="products-header" isNameOnly={isNameOnly} />}
             rows={list.rows}
             keyOf={productKey}
             onNearEnd={list.onNearEnd}
@@ -122,7 +137,8 @@ export function ProductsList({ openId }: { openId: string }) {
                     product={product}
                     isSelected={product.id === selectedId}
                     onOpen={navigation.open}
-                    menu={menus.menuFor(product)}
+                    menu={menuOf(product)}
+                    isNameOnly={isNameOnly}
                 />
             )}
         />

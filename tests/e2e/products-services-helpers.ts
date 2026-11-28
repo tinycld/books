@@ -52,6 +52,8 @@ export const PRODUCT_KIND: RecordKind = {
     newTitle: 'New product or service',
     deleteTitle: 'Delete product or service',
     discardMessage: 'This product has changes that are not saved.',
+    // An Inventory item opens its page, `item-page` on every surface.
+    recordPage: 'item-page',
 }
 
 export const productHelpers = recordFormHelpers(PRODUCT_KIND)

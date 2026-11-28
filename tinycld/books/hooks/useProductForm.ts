@@ -21,10 +21,11 @@ import { applyPatch } from '../lib/record-save'
 import { createTablePlans } from '../lib/table-writes'
 import type { BooksProducts } from '../types'
 import { useBundleItems } from './useBundleItems'
+import { useHasBinsQuery } from './useHasBins'
 import { useIsShowingNewProduct, useProductNavigation } from './useProductNavigation'
 import { SERVER_UNREACHED } from './useRecordActions'
 import { useRecordForm } from './useRecordForm'
-import { useRecordSave } from './useRecordSave'
+import { type RecordSaveFollowUps, useRecordSave } from './useRecordSave'
 
 // The product form's host tables: a bundle's item rows.
 const BUNDLE_TABLES = { items: BUNDLE_ITEM_COLUMNS }
@@ -35,8 +36,17 @@ export type ProductFormTarget =
     | { mode: 'new'; type: ProductType; createValues: Record<string, unknown> }
     | { mode: 'edit'; record: BooksProducts }
 
-/** The open product's form, its fields and title following the type field. */
-export function useProductForm(target: ProductFormTarget): RecordChildState {
+// What an Inventory item's page does after its Details save, in place of leaving.
+export type ProductPageSave = Pick<RecordSaveFollowUps, 'afterEdit' | 'onRefused'>
+
+/**
+ * The open product's form, its fields and title following the type field. An Inventory
+ * item's form is its page's Details tab, which passes what follows its save (`page`).
+ */
+export function useProductForm(
+    target: ProductFormTarget,
+    page: ProductPageSave = {}
+): RecordChildState {
     const record = target.mode === 'edit' ? target.record : undefined
     const bundleRows = useBundleItems(record?.id ?? '')
     const tables = bundleRows.isReady
@@ -58,9 +68,16 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
     const isShowingNew = useIsShowingNewProduct()
     const [productsCollection, itemsCollection] = useStore('books_products', 'books_bundle_items')
     const stored = base.definition
+    // Default bin shows once the book has a bin location. When the read fails the field
+    // shows, and its picker gives the load error with Retry (BinPicker reads books_bins).
+    const binsQuery = useHasBinsQuery()
+    const hasBins = binsQuery.hasBins === true || binsQuery.isError
     const definition = useMemo(
-        () => (stored ? productDefinitionFor(stored, type, base.host, target.mode) : undefined),
-        [stored, type, base.host, target.mode]
+        () =>
+            stored
+                ? productDefinitionFor(stored, type, base.host, target.mode, { hasBins })
+                : undefined,
+        [stored, type, base.host, target.mode, hasBins]
     )
     const host = useMemo(() => productHostFor(base.host, type), [base.host, type])
     const saver = useRecordSave(
@@ -109,6 +126,7 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
             host,
             context: base.context,
             definition,
+            ...(target.mode === 'edit' ? page : {}),
         }
     )
     return {

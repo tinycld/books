@@ -8,6 +8,8 @@ import {
     openNewProduct,
     openProductsList,
     pickOption,
+    productEntry,
+    searchProducts,
 } from './products-services-helpers'
 
 // A per-run memo (the same as the other document specs'), so an adjustment a test makes
@@ -117,6 +119,42 @@ export async function makeInventoryItem(
     if (item.bin !== undefined) await pickOption(page, 'default_bin', item.bin)
     await page.getByTestId('product-save').click()
     await expectSavedToList(page)
+}
+
+// ---- The item page (inventory-adjust spec §3.6) ----
+
+// A product's own screen: `books/products/<code or id>`, never `.../new`.
+export const PRODUCT_URL = /\/books\/products\/(?!new(?:[?#]|$))[^/?#]+(?:\?[^#]*)?$/
+
+// The shown item page.
+export function itemPage(page: Page): Locator {
+    return shown(page, 'item-page')
+}
+
+// A tab of the shown item page, by its label.
+export function itemTab(page: Page, label: 'Stock' | 'Bins' | 'Details'): Locator {
+    return itemPage(page).getByRole('tab', { name: label, exact: true })
+}
+
+/**
+ * From anywhere in Books where the products list can open (Books open, no item page
+ * shown): the Products and services list, a search for `name`, and a press on its row or
+ * card. Waits for the item page of that Inventory item.
+ */
+export async function openItem(page: Page, name: string) {
+    await openProductsList(page)
+    await searchProducts(page, name)
+    await productEntry(page, name).click()
+    await expect(page).toHaveURL(PRODUCT_URL)
+    await expect(itemPage(page)).toBeVisible()
+}
+
+// The item page must be shown. Presses its Details tab and waits for the product form in it.
+export async function openItemDetails(page: Page) {
+    const tab = itemTab(page, 'Details')
+    await tab.click()
+    await expect(tab).toHaveAttribute('aria-selected', 'true')
+    await expect(itemPage(page).getByTestId('form-input-name')).toBeVisible()
 }
 
 // Books must be open. The Inventory adjustments tab (unless it is the shown screen), then

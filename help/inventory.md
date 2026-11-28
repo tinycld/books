@@ -31,7 +31,7 @@ Saving an item with an opening quantity is an inventory transaction: it locks th
 
 ## Quantity on hand
 
-To see how many you have, open the item. Quantity on hand shows on the form. You cannot type it: Books sets it from the transactions you post. A quantity can have up to 2 decimals.
+To see how many you have, open the item. Its page shows On hand, On PO, Stock value and Average cost (or Next cost under FIFO) over the tabs Stock and Details; the Stock tab lists the item's movements, newest first. The quantity on hand is not on the form, and you cannot type it: Books sets it from the transactions you post. A quantity can have up to 2 decimals.
 
 These transactions change the quantity on hand when you post them:
 

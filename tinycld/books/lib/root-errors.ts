@@ -6,3 +6,8 @@ export function rootErrorOnly(errors: { root?: { message?: string } }): FieldErr
     if (!message) return {}
     return { form: { type: 'server', message } }
 }
+
+// Whether a form holds an error on a field (not only on its root).
+export function hasFieldErrors(errors: object): boolean {
+    return Object.keys(errors).some(key => key !== 'root')
+}
