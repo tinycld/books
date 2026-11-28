@@ -37,9 +37,12 @@ function useChosenBin(id: string) {
 
 type ChosenBin = ReturnType<typeof useChosenBin>
 
-// The trigger's text: "No bin" for no bin; `…` while the chosen row loads; "Unknown bin"
-// when its read failed or the bin is gone (the id is kept).
-function chosenNameOf(value: string, chosen: ChosenBin): string {
+const NO_CHOICE_LABEL = 'Choose a bin location'
+
+// The trigger's text: a prompt for no choice (null); "No bin" for no bin; `…` while the
+// chosen row loads; "Unknown bin" when its read failed or the bin is gone (the id is kept).
+function chosenNameOf(value: string | null, chosen: ChosenBin): string {
+    if (value === null) return NO_CHOICE_LABEL
     if (value === NO_BIN) return NO_BIN_LABEL
     if (chosen.bin) return chosen.bin.name
     if (chosen.isError) return 'Unknown bin'
@@ -47,8 +50,8 @@ function chosenNameOf(value: string, chosen: ChosenBin): string {
 }
 
 interface BinPickerProps {
-    // The bin location id; '' is No bin.
-    value: string
+    // The bin location id; '' is No bin, null no choice yet (Move stock's To).
+    value: string | null
     onChange: (id: string) => void
     testID: string
     disabled: boolean
@@ -59,6 +62,17 @@ interface BinPickerProps {
     triggerRef?: (node: PressableInstance | null) => void
     onFocus?: () => void
     onBlur?: () => void
+    // A bin the menu does not offer (Move stock's To leaves out its From bin); NO_BIN leaves
+    // out "No bin".
+    excludes?: string
+}
+
+// The options a picker shows: the active bins, without the excluded one.
+function offeredOptions(
+    bins: readonly { id: string; name: string }[],
+    excludes: string | undefined
+) {
+    return bins.filter(bin => bin.id !== excludes).map(bin => ({ id: bin.id, label: bin.name }))
 }
 
 /**
@@ -78,18 +92,17 @@ export function BinPicker({
     triggerRef,
     onFocus,
     onBlur,
+    excludes,
 }: BinPickerProps) {
     const picker = useSearchPicker()
     const active = useActiveBins()
-    const chosen = useChosenBin(value)
-    const options = useMemo(
-        () => active.bins.map(bin => ({ id: bin.id, label: bin.name })),
-        [active.bins]
-    )
+    const chosen = useChosenBin(value ?? NO_BIN)
+    const options = useMemo(() => offeredOptions(active.bins, excludes), [active.bins, excludes])
     const shown = pickerOptionsMatching(options, picker.debouncedTerm)
     const chosenName = chosenNameOf(value, chosen)
     const suffix = chosen.bin?.inactive ? '(inactive)' : undefined
-    const noneOption = { label: NO_BIN_LABEL, testID: `${testID}-none` }
+    const noneOption =
+        excludes === NO_BIN ? undefined : { label: NO_BIN_LABEL, testID: `${testID}-none` }
     const retry = () => {
         if (active.isError) active.retry()
         if (chosen.isError) chosen.retry()
@@ -100,6 +113,7 @@ export function BinPicker({
             title="Bin location"
             triggerLabel={chosenName}
             triggerSuffix={suffix}
+            isPlaceholder={value === null}
             triggerAccessibilityLabel={`${label}: ${chosenName}`}
             triggerTestId={testID}
             disabled={disabled}

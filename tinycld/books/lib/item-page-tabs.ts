@@ -11,7 +11,7 @@ export const ITEM_TABS: readonly ItemTabEntry[] = [
 ]
 
 // The tabs built so far, in strip order; the first is the default (no `tab` param).
-export const ITEM_TAB_ORDER: readonly ItemTab[] = ['stock', 'details']
+export const ITEM_TAB_ORDER: readonly ItemTab[] = ['stock', 'bins', 'details']
 
 // The tabs the strip draws, in ITEM_TAB_ORDER.
 export const SHOWN_ITEM_TABS: readonly ItemTabEntry[] = ITEM_TAB_ORDER.flatMap(key =>

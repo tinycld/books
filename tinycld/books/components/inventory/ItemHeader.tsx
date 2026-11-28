@@ -11,8 +11,9 @@ import { ItemMoreMenu } from './ItemMoreMenu'
 const PREFIX = 'product'
 const BACK_LABEL = 'Products and services'
 
-// Adjust stock (A), in the item page's `modal` scope (RecordSurface's).
+// Adjust stock (A) and Move stock (M), in the item page's `modal` scope (RecordSurface's).
 const ADJUST_KEY = { keys: 'a', scope: 'modal', group: 'Item' } as const
+export const MOVE_STOCK_KEY = { keys: 'm', scope: 'modal', group: 'Item' } as const
 
 function BackLink({ isVisible, onPress }: { isVisible: boolean; onPress: () => void }) {
     if (!isVisible) return null
@@ -64,6 +65,24 @@ function AdjustButton({ isVisible, isPhone, onPress }: AdjustButtonProps) {
     )
 }
 
+// A writer's Move stock on a wide window, while the book has a bin; on a phone it is a row
+// of More (ItemMoreMenu). Idle while writes cannot reach the server.
+function MoveStockButton({ isVisible, onPress }: { isVisible: boolean; onPress: () => void }) {
+    const scopeOwner = useScopeOwner() ?? undefined
+    if (!isVisible) return null
+    return (
+        <ShortcutButton
+            testID="item-move-stock"
+            label="Move stock"
+            variant="outline"
+            shortcut={MOVE_STOCK_KEY}
+            onPress={onPress}
+            scopeOwner={scopeOwner}
+            serverAction
+        />
+    )
+}
+
 function TitleRow({ record, trailing }: { record: BooksProducts; trailing: ReactNode }) {
     return (
         <View className="min-w-0 flex-row items-center gap-2">
@@ -102,8 +121,9 @@ interface ItemHeaderProps {
  * The item page's header, in the party page header's layout (PartyPageHeader, whose
  * contact actions an item has none of): "‹ Products and services" on the page surface,
  * the name (two lines, then truncated) with the Inactive and Low stock badges, and
- * "<code> · Inventory" under it. A writer gets Adjust stock and More; a reader no action.
- * On a phone More sits at the top right and Adjust stock fills a row of its own.
+ * "<code> · Inventory" under it. A writer gets Adjust stock, Move stock (while the book
+ * has a bin) and More; a reader no action. On a phone More sits at the top right, with
+ * Move stock as one of its rows, and Adjust stock fills a row of its own.
  */
 export function ItemHeader({ record, page, surface, isPhone }: ItemHeaderProps) {
     const gutter = isPhone ? 'px-4' : 'px-6'
@@ -145,6 +165,10 @@ export function ItemHeader({ record, page, surface, isPhone }: ItemHeaderProps) 
                 </View>
                 <View className="flex-row items-start gap-2">
                     {adjust}
+                    <MoveStockButton
+                        isVisible={page.moveStock.isOffered}
+                        onPress={page.moveStock.open}
+                    />
                     {more}
                 </View>
             </View>

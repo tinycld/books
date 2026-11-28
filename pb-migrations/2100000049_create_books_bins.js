@@ -3,8 +3,11 @@
 // quantity of each item in each bin, and the moves of stock between bins.
 //
 // BINS are a list a writer keeps: a name (unique without regard to case), a note
-// and an inactive mark. sort_key belongs to the server (server/bins.go). The Go
-// guard refuses the delete of a bin while anything names it.
+// and an inactive mark. sort_key is the name case- and accent-folded; only the
+// Go guard sets it, on every create and update, whatever the request sent
+// (validateBin, server/bins.go). The bin list sorts and pages on (sort_key, id),
+// so it is not hidden. The Go guard refuses the delete of a bin while anything
+// names it.
 //
 // BIN STOCK is derived: one row for each item and bin that ever held stock, its
 // quantity in that bin. bin '' is No bin. Only Books writes it (no create, update
@@ -112,13 +115,13 @@ migrate(
                     { name: 'name', type: 'text', required: true, max: 100 },
                     { name: 'note', type: 'text', max: 500 },
                     { name: 'inactive', type: 'bool' },
-                    { name: 'sort_key', type: 'text', hidden: true, max: 200 },
+                    { name: 'sort_key', type: 'text', max: 200 },
                     { name: 'created', type: 'autodate', onCreate: true, onUpdate: false },
                     { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true },
                 ],
                 indexes: [
                     'CREATE UNIQUE INDEX idx_books_bins_name ON books_bins (lower(name))',
-                    'CREATE INDEX idx_books_bins_sort_key ON books_bins (sort_key)',
+                    'CREATE INDEX idx_books_bins_sort ON books_bins (sort_key, id)',
                 ],
             })
         )

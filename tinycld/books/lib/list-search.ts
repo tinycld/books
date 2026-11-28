@@ -48,14 +48,15 @@ export function hasListFilter(filters: ListFilters): boolean {
 // Unicode, and PocketBase `~` (SQLite LIKE) folds A-Z only. So a row already in the
 // store (the open record, a materialized parent, a picker row) can show in a non-ASCII
 // search that the server would not answer ("école" finds a loaded "ÉCOLE"). The local
-// result is a superset of the server's, so no row the server sends is dropped.
+// result is a superset of the server's, so no row the server sends is dropped. A list that
+// searches one column (the bin locations' name) passes one: its piece needs no `or`.
 export function listFilter(
-    columns: { isActive: Clause; text: readonly [TextColumn, TextColumn, ...TextColumn[]] },
+    columns: { isActive: Clause; text: readonly [TextColumn, ...TextColumn[]] },
     filters: ListFilters
 ) {
     const clauses = searchPieces(filters.search).map(piece => {
         const [first, second, ...rest] = columns.text.map(column => ilike(column, `%${piece}%`))
-        return or(first, second, ...rest)
+        return second === undefined ? first : or(first, second, ...rest)
     })
     if (!filters.showInactive) clauses.push(columns.isActive)
     const [first, second, ...rest] = clauses

@@ -54,7 +54,7 @@ Sales price is the price you usually charge. Income account is the account that 
 
 If you also buy the item, turn on I purchase this from a vendor to show Purchase description, Cost and Expense account. Cost is what you usually pay, and Expense account is the account that a purchase of this item goes to.
 
-An Inventory item is always purchased, so it has no switch, and its Expense account is named Cost of goods sold account. It also has an Inventory asset account, a Preferred vendor, a Reorder point, a Default bin (when the book has a bin) and opening stock, and it opens on its own page, which shows its Quantity on hand over the tabs Stock and Details (the form). See [Inventory](help://books:inventory).
+An Inventory item is always purchased, so it has no switch, and its Expense account is named Cost of goods sold account. It also has an Inventory asset account, a Preferred vendor, a Reorder point, a Default bin (when the book has a bin) and opening stock, and it opens on its own page, which shows its Quantity on hand over the tabs Stock, Bins (how many each bin location holds, and Move stock between them) and Details (the form). See [Inventory](help://books:inventory).
 
 ## Taxable
 

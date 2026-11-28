@@ -741,6 +741,33 @@ describe('inventory adjustments', () => {
     })
 })
 
+// Inventory-adjust spec §2 (Q2): the Bin locations tab (`books/bins`) has no sidebar entry
+// of its own either, so the Lists entry stays active on it.
+describe('bin locations', () => {
+    function listsEntry(): SidebarEntry {
+        const lists = SIDEBAR_ENTRIES.find(e => e.id === 'lists')
+        if (!lists) throw new Error('SIDEBAR_ENTRIES has no lists entry')
+        return lists
+    }
+
+    it('the Lists entry names books/bins in its activePaths', () => {
+        expect(listsEntry().activePaths).toContain('books/bins')
+    })
+
+    it.each([
+        '/a/org/books/bins',
+        '/a/org/books/bins/',
+    ])('the Lists entry is active on %s, and no other entry is', pathname => {
+        expect(isActivePath(pathname, listsEntry())).toBe(true)
+        const others = SIDEBAR_ENTRIES.filter(e => e.id !== 'lists')
+        expect(others.filter(e => isActivePath(pathname, e)).map(e => e.id)).toEqual([])
+    })
+
+    it('the Lists entry is not active on a near-miss segment', () => {
+        expect(isActivePath('/a/org/books/bins-old', listsEntry())).toBe(false)
+    })
+})
+
 // The Books reports are a section of the sidebar (components/sidebar/ReportsSection.tsx);
 // the fixed navigation has no Reports entry, so a screen shortcut cannot name it.
 describe('no reports sidebar entry', () => {

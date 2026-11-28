@@ -16,7 +16,9 @@ import { DiscardDialog, RecordFormBody } from '../RecordChild'
 import { RecordLoadingBody, RecordSurface } from '../RecordSurface'
 import { RecordTabs } from '../RecordTabs'
 import { CostLayers } from './CostLayers'
+import { ItemBinsTab } from './ItemBinsTab'
 import { ItemHeader } from './ItemHeader'
+import { MoveStockDialog } from './MoveStockDialog'
 import { StockFigures } from './StockFigures'
 import { StockMovementsList } from './StockMovementsList'
 
@@ -120,16 +122,23 @@ function ItemTabBody({
     surface,
     rowClassName,
     ...props
-}: TabProps & { tab: ItemTab; surface: DetailSurface; rowClassName: string }) {
+}: TabProps & {
+    tab: ItemTab
+    record: BooksProducts
+    surface: DetailSurface
+    rowClassName: string
+}) {
     if (tab === 'details') {
         return <DetailsTab page={props.page} surface={surface} rowClassName={rowClassName} />
     }
+    if (tab === 'bins') return <ItemBinsTab record={props.record} gutterClass={props.gutterClass} />
     return <StockTab {...props} />
 }
 
 /**
  * An Inventory item's page (inventory-adjust spec §3.6), at the record width: the header
- * and its actions, the four figures, the tabs Stock and Details and the tab's body, all in
+ * and its actions, the four figures, the tabs Stock, Bins and Details and the tab's body
+ * (the Bins tab is ItemBinsTab), the Move stock dialog, all in
  * the page's one scroll (on the Stock tab it loads more moves near its end), and the save
  * bar fixed at the bottom while Details has unsaved edits. The form, the chip and the
  * leave guard live in useItemPage, above the surface chrome and the tabs, so neither a
@@ -147,6 +156,8 @@ export function ItemPage({ record }: { record: BooksProducts }) {
     const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
         if (page.tab === 'stock' && isNearEnd(event)) page.moves.loadMore()
     }
+    // The last bin made inactive or deleted elsewhere withdraws Move stock, and its dialog.
+    const isMoveOpen = page.moveStock.isOpen && page.moveStock.isOffered
     return (
         <DocumentChromeContext.Provider value={ITEM_CHROME}>
             <RecordSurface
@@ -188,6 +199,7 @@ export function ItemPage({ record }: { record: BooksProducts }) {
                     <View className="flex-1">
                         <ItemTabBody
                             tab={page.tab}
+                            record={record}
                             page={page}
                             isPhone={isPhone}
                             gutterClass={gutterClass}
@@ -205,6 +217,7 @@ export function ItemPage({ record }: { record: BooksProducts }) {
                     gutterClass={gutterClass}
                     testIdPrefix={PREFIX}
                 />
+                <MoveStockDialog isOpen={isMoveOpen} item={record} onClose={page.moveStock.close} />
                 <DiscardDialog guard={page.guard} message={PRODUCT_DISCARD_MESSAGE} />
                 <DiscardDialog guard={page.cancelQuestion} message={PRODUCT_DISCARD_MESSAGE} />
             </RecordSurface>

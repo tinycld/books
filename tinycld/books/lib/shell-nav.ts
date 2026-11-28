@@ -83,14 +83,15 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         ],
         available: true,
     },
-    // The lists hub; the Inventory adjustments tab of Products and services has no entry of
-    // its own, so its list and each adjustment keep this entry active.
+    // The lists hub; the Inventory adjustments and Bin locations tabs of Products and
+    // services have no entry of their own, so their lists and each adjustment keep this
+    // entry active.
     {
         id: 'lists',
         label: 'Lists',
         icon: List,
         href: 'books/lists',
-        activePaths: ['books/inventory-adjustments'],
+        activePaths: ['books/inventory-adjustments', 'books/bins'],
         available: true,
     },
     {

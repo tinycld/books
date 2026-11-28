@@ -36,6 +36,27 @@ async function vendorFilter(filters: ListFilters) {
     return pb.filters
 }
 
+// The filter one bin locations list query sends: a list that searches one column (name).
+async function binFilter(filters: ListFilters) {
+    const pb = new OfflinePocketBase()
+    disconnectRealtime(pb)
+    const newCollection = createCollection(pb)
+    const books = registerCollections(
+        newCollection as never,
+        { users: newCollection('users') } as never
+    )
+    const query = createLiveQueryCollection(q =>
+        q
+            .from({ bin: books.books_bins })
+            .where(({ bin }) =>
+                listFilter({ isActive: eq(bin.inactive, false), text: [bin.name] }, filters)
+            )
+    )
+    await query.preload()
+    await query.cleanup()
+    return pb.filters
+}
+
 const TEXT = (term: string) =>
     `display_name ~ "%${term}%" || company ~ "%${term}%" || email ~ "%${term}%" || phone ~ "%${term}%"`
 
@@ -81,6 +102,15 @@ describe('listFilter, as pbtsdb sends it to the server', () => {
     it('needs every piece, and the inactive filter, when both apply', async () => {
         expect(await vendorFilter({ search: '100% off', showInactive: false })).toEqual([
             `((${TEXT('100')}) && (${TEXT('off')}) && inactive = false)`,
+        ])
+    })
+
+    it('matches one search column with no `or`, alone and with the inactive filter', async () => {
+        expect(await binFilter({ search: 'Aisle', showInactive: true })).toEqual([
+            'name ~ "%Aisle%"',
+        ])
+        expect(await binFilter({ search: 'Aisle 3%B', showInactive: false })).toEqual([
+            '(name ~ "%Aisle 3%" && name ~ "%B%" && inactive = false)',
         ])
     })
 

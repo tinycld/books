@@ -3,7 +3,7 @@ import { log } from '@tinycld/core/lib/logger'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { usePublishDirty } from '../components/RecordChild'
 import { selectRecordTab } from '../components/RecordTabs'
 import { newAdjustmentPath } from '../lib/adjustment-route'
@@ -17,6 +17,7 @@ import { useProductFormStore } from '../stores/product-form-store'
 import { useDeletingRecord } from '../stores/record-form-store'
 import type { BooksProducts } from '../types'
 import { useBooksSettings } from './useBooksSettings'
+import { useHasBins } from './useHasBins'
 import { useProductActions } from './useProductActions'
 import { useProductForm } from './useProductForm'
 import { useProductNavigation } from './useProductNavigation'
@@ -74,7 +75,8 @@ export type ItemStock = ReturnType<typeof useItemStock>
  * the form's edits. Save stays on the page; a refusal on a field
  * selects Details. The leave guard holds every way out while the form has edits, except
  * while a save runs or the item is being deleted. Adjust stock opens a new adjustment
- * with one line of the item; More makes it inactive or active, or deletes it.
+ * with one line of the item; Move stock (a writer's, while the book has a bin) opens its
+ * dialog; More makes it inactive or active, or deletes it.
  */
 export function useItemPage(record: BooksProducts) {
     const params = useLocalSearchParams<{ tab?: string }>()
@@ -150,6 +152,19 @@ export function useItemPage(record: BooksProducts) {
         router.push(orgHref(route.path, route.params))
     }
 
+    // Move stock is offered only while the book has a bin location (spec §3.6 "Header").
+    const hasBins = useHasBins() === true
+    const [isMoveOpen, setMoveOpen] = useState(false)
+    // Stable, so the phone's Move stock key (ItemMoreMenu) registers once.
+    const openMove = useCallback(() => setMoveOpen(true), [])
+    const closeMove = useCallback(() => setMoveOpen(false), [])
+    const moveStock = {
+        isOffered: canWrite && hasBins,
+        isOpen: isMoveOpen,
+        open: openMove,
+        close: closeMove,
+    }
+
     const actionRefusal = actions.actionError?.message ?? null
     const bannerMessage = isDeleteOpen ? null : actionRefusal
     const deleteRefusal = actions.actionError?.id === record.id ? actionRefusal : null
@@ -178,6 +193,7 @@ export function useItemPage(record: BooksProducts) {
         navigation,
         actions,
         adjustStock,
+        moveStock,
         toggleInactive,
         deleteDialog: {
             isOpen: isDeleteOpen,
